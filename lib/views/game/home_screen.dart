@@ -1,4 +1,4 @@
-import 'package:buscando_minas/views/difficulty_selection_screen.dart';
+import 'package:buscando_minas/views/game/difficulty_selection_screen.dart';
 import 'package:buscando_minas/views/multiplayer_menu_screen.dart';
 import 'package:flutter/material.dart';
 

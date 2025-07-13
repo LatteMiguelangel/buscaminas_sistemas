@@ -53,12 +53,17 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   int flagsPlaced = 0;
   Timer? _timer;
   int _elapsedSeconds = 0;
+  String _currentPlayerId = 'host';
+  void _togglePlayer() {
+    _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
+  }
 
   GameBloc(this.configuration) : super(GameInitial(configuration)) {
     on<InitializeGame>((event, emit) {
       final cells = generateBoard(configuration, seed: event.seed);
       flagsPlaced = 0;
       _elapsedSeconds = 0;
+      _currentPlayerId = 'host';
       _timer?.cancel();
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (state is Playing) {
@@ -70,6 +75,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
               cells: current.cells,
               flagsRemaining: configuration.numberOfBombs - flagsPlaced,
               elapsedSeconds: _elapsedSeconds,
+              currentPlayerId: _currentPlayerId,
             ),
           );
         }
@@ -81,6 +87,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           cells: cells,
           flagsRemaining: configuration.numberOfBombs,
           elapsedSeconds: _elapsedSeconds,
+          currentPlayerId: _currentPlayerId,
         ),
       );
 
@@ -106,9 +113,16 @@ class GameBloc extends Bloc<GameEvent, GameState> {
             cells: currentState.cells,
             flagsRemaining: configuration.numberOfBombs - flagsPlaced,
             elapsedSeconds: _elapsedSeconds,
+            currentPlayerId: _currentPlayerId,
           ),
         );
       }
+    });
+    on<ReplaceState>((event, emit) {
+      emit(event.newState);
+    });
+    on<SetPlayingState>((event, emit) {
+      emit(event.playing);
     });
   }
 
@@ -123,7 +137,6 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     if (tappedCell is! CellClosed || tappedCell.flagged) return;
 
     if (tappedCell.content == CellContent.bomb) {
-      // Revelar todas las bombas
       for (int i = 0; i < cells.length; i++) {
         if (cells[i] is CellClosed &&
             (cells[i] as CellClosed).content == CellContent.bomb) {
@@ -131,7 +144,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           cells[i] = CellOpened(index: i, content: CellContent.bomb);
         }
       }
-
+      _togglePlayer();
       emit(GameOver(configuration: configuration, cells: cells, won: false));
       return;
     }
@@ -149,6 +162,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         cells: cells,
         flagsRemaining: configuration.numberOfBombs - flagsPlaced,
         elapsedSeconds: _elapsedSeconds,
+        currentPlayerId: _currentPlayerId,
       ),
     );
   }
@@ -163,7 +177,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     if (cell is! CellClosed) return;
 
     if (!cell.flagged && flagsPlaced >= configuration.numberOfBombs) {
-      return; // Límite de banderas alcanzado
+      return;
     }
 
     final updatedCell = cell.copyWith(flagged: !cell.flagged);
@@ -175,12 +189,14 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       _timer?.cancel();
       emit(Victory(state.gameConfiguration));
     } else {
+      _togglePlayer();
       emit(
         Playing(
           configuration: state.gameConfiguration,
           cells: updatedCells,
           flagsRemaining: configuration.numberOfBombs - flagsPlaced,
           elapsedSeconds: _elapsedSeconds,
+          currentPlayerId: _currentPlayerId,
         ),
       );
     }

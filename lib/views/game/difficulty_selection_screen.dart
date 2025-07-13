@@ -1,4 +1,4 @@
-import 'package:buscando_minas/views/game_screen_launcher.dart';
+import 'package:buscando_minas/views/game/game_screen_launcher.dart';
 import 'package:flutter/material.dart';
 
 class DifficultySelectionScreen extends StatelessWidget {

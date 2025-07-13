@@ -1,6 +1,6 @@
 import 'package:buscando_minas/logic/bloc/game_bloc.dart';
 import 'package:buscando_minas/logic/model.dart';
-import 'package:buscando_minas/views/cell_view.dart';
+import 'package:buscando_minas/views/game/cell_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

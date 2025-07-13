@@ -69,3 +69,31 @@ GameConfiguration generateCustomConfiguration(int numberOfBombs) {
     return GameConfiguration(width: 30, height: 16, numberOfBombs: numberOfBombs);
   }
 }
+
+extension CellSerialization on Cell {
+  Map<String, dynamic> toJson() {
+    return {
+      'index': index,
+      'content': content.index,
+      'flagged': this is CellClosed
+          ? (this as CellClosed).flagged
+          : false,
+      'opened': this is CellOpened,
+    };
+  }
+
+  static Cell fromJson(Map<String, dynamic> json) {
+    final content = CellContent.values[json['content'] as int];
+    final idx = json['index'] as int;
+    final opened = json['opened'] as bool;
+    if (opened) {
+      return CellOpened(index: idx, content: content);
+    } else {
+      return CellClosed(
+        index: idx,
+        content: content,
+        flagged: json['flagged'] as bool? ?? false,
+      );
+    }
+  }
+}

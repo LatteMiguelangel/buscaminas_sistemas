@@ -1,5 +1,5 @@
 import 'package:buscando_minas/logic/network/network_manager.dart';
-import 'package:buscando_minas/views/multiplayer_game_screen.dart';
+import 'package:buscando_minas/views/client_game_screen.dart';
 import 'package:flutter/material.dart';
 
 class JoinScreen extends StatefulWidget {
@@ -19,12 +19,19 @@ class _JoinScreenState extends State<JoinScreen> {
   @override
   void initState() {
     super.initState();
-    _clientManager = NetworkClient(onConnected: () {
-      setState(() {
-        _connected = true;
-        _error = null;
-      });
-    });
+    _clientManager = NetworkClient(
+      onConnected: () {
+        setState(() {
+          _connected = true;
+          _error = null;
+        });
+      },
+      onEvent: (event) {
+        // ⚠️ Solo para prueba inicial
+        print('📥 Evento recibido en cliente: ${event.toJson()}');
+        // Aquí puedes manejar el evento NetEventType.gameStart
+      },
+    );
   }
 
   Future<void> _connect() async {
@@ -43,7 +50,7 @@ class _JoinScreenState extends State<JoinScreen> {
 
   @override
   void dispose() {
-    _clientManager.disconnect();
+    //_clientManager.disconnect();
     _hostController.dispose();
     _portController.dispose();
     super.dispose();
@@ -102,17 +109,19 @@ class _JoinScreenState extends State<JoinScreen> {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => MultiplayerGameScreen.client(
-                        clientManager: _clientManager,
-                      ),
+                      builder:
+                          (_) =>
+                              ClientGameScreen(clientManager: _clientManager),
                     ),
                   );
                 },
                 child: const Text('✅ Conectado: Unirse'),
               )
             else
-              const Text('Esperando conexión…',
-                  style: TextStyle(color: Colors.white70)),
+              const Text(
+                'Esperando conexión…',
+                style: TextStyle(color: Colors.white70),
+              ),
           ],
         ),
       ),

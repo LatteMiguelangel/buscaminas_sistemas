@@ -1,4 +1,4 @@
-import 'package:buscando_minas/views/home_screen.dart';
+import 'package:buscando_minas/views/game/home_screen.dart';
 import 'package:flutter/material.dart';
 
 void main() {

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:buscando_minas/views/game_screen.dart';
+import 'package:buscando_minas/views/game/game_screen.dart';
 
 class GameScreenLauncher extends StatelessWidget {
   final int numberOfBombs;

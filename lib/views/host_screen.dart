@@ -1,8 +1,9 @@
-// lib/views/host_screen.dart
+import 'package:buscando_minas/logic/bloc/game_bloc.dart';
 import 'package:buscando_minas/logic/model.dart';
 import 'package:buscando_minas/logic/network/network_event.dart';
 import 'package:buscando_minas/logic/network/network_manager.dart';
-import 'package:buscando_minas/views/multiplayer_game_screen.dart';
+import 'package:buscando_minas/views/host_game_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class HostScreen extends StatefulWidget {
@@ -20,9 +21,11 @@ class _HostScreenState extends State<HostScreen> {
   @override
   void initState() {
     super.initState();
-    _hostManager = NetworkHost(onClientConnected: () {
-      setState(() => _clientConnected = true);
-    });
+    _hostManager = NetworkHost(
+      onClientConnected: () {
+        setState(() => _clientConnected = true);
+      },
+    );
     _startServer();
   }
 
@@ -59,8 +62,10 @@ class _HostScreenState extends State<HostScreen> {
             if (_addressPort == null) ...[
               const CircularProgressIndicator(color: Colors.greenAccent),
               const SizedBox(height: 16),
-              const Text('Arrancando servidor…',
-                  style: TextStyle(color: Colors.white)),
+              const Text(
+                'Arrancando servidor…',
+                style: TextStyle(color: Colors.white),
+              ),
             ] else ...[
               Text(
                 'Dirección para conectar:\n',
@@ -79,52 +84,58 @@ class _HostScreenState extends State<HostScreen> {
               const SizedBox(height: 24),
               _clientConnected
                   ? Column(
-                      children: [
-                        const Text('✅ Cliente conectado',
-                            style: TextStyle(color: Colors.greenAccent)),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: () {
-                            // 1. Generamos la configuración (o la recibes como parámetro si vienes de otra pantalla)
-                            final config = GameConfiguration(
-                              width: generateCustomConfiguration(10).width,
-                              height: generateCustomConfiguration(10).height,
-                              numberOfBombs: 10,
+                    children: [
+                      const Text(
+                        '✅ Cliente conectado',
+                        style: TextStyle(color: Colors.greenAccent),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          final config = GameConfiguration(
+                            width: generateCustomConfiguration(10).width,
+                            height: generateCustomConfiguration(10).height,
+                            numberOfBombs: 10,
+                          );
+                          final seed = DateTime.now().millisecondsSinceEpoch;
+                          final event = NetEvent(
+                            type: NetEventType.gameStart,
+                            data: {
+                              'width': config.width,
+                              'height': config.height,
+                              'numberOfBombs': config.numberOfBombs,
+                              'seed': seed,
+                            },
+                          );
+                          if (kDebugMode) {
+                            print(
+                              '📤 Enviando gameStart al cliente: ${event.toJson()}',
                             );
-                            // 2. Creamos la Semilla
-                            final seed = DateTime.now().millisecondsSinceEpoch;
-
-                            // 3. Preparamos el Evento
-                            final event = NetEvent(
-                              type: NetEventType.gameStart,
-                              data: {
-                                'width' : config.width,
-                                'height': config.height,
-                                'numberOfBombs': config.numberOfBombs,
-                                'seed': seed,
-                              },
-                            );
+                          }
+                          Future.delayed(const Duration(milliseconds: 300), () {
                             _hostManager.send(event.toJson());
-
-                            //4. Navegamos a la pantalla multiplayer
-                            // -> se pasa hostManager, config y seed
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => MultiplayerGameScreen.host(
-                                  hostManager: _hostManager,
-                                  hostConfig: config,
-                                  hostSeed: seed,
-                                )
-                              ),
-                            );
-                          },
-                          child: const Text('🚀 Empezar partida'),
-                        ),
-                      ],
-                    )
-                  : const Text('⏳ Esperando cliente…',
-                      style: TextStyle(color: Colors.white70)),
+                          });
+                          final bloc = GameBloc(config)
+                            ..add(InitializeGame(seed: seed));
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder:
+                                  (_) => HostGameScreen(
+                                    bloc: bloc,
+                                    hostManager: _hostManager,
+                                  ),
+                            ),
+                          );
+                        },
+                        child: const Text('🚀 Empezar partida'),
+                      ),
+                    ],
+                  )
+                  : const Text(
+                    '⏳ Esperando cliente…',
+                    style: TextStyle(color: Colors.white70),
+                  ),
             ],
           ],
         ),

@@ -27,3 +27,15 @@ class ToggleFlag extends GameEvent {
 }
 
 class UpdateTime extends GameEvent {}
+
+class ReplaceState extends GameEvent {
+  final Playing newState;
+  const ReplaceState(this.newState);
+  @override
+  List<Object> get props => [newState];
+}
+
+class SetPlayingState extends GameEvent {
+  final Playing playing;
+  const SetPlayingState(this.playing);
+}
