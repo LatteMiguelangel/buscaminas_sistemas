@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:buscando_minas/logic/bloc/game_bloc.dart';
@@ -40,6 +39,9 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
           break;
         case NetEventType.stateUpdate:
           final map = evt.data;
+          print(
+            '📦 Cliente recibe stateUpdate: ${map['cells']?.length} celdas',
+          );
           final playing = Playing.fromJson(map, _config);
           _bloc.add(SetPlayingState(playing));
           if (!_initialized) {

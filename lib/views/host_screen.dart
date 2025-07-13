@@ -38,7 +38,7 @@ class _HostScreenState extends State<HostScreen> {
 
   @override
   void dispose() {
-    _hostManager.stop();
+    //_hostManager.stop();
     super.dispose();
   }
 

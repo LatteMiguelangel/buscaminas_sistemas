@@ -18,13 +18,16 @@ class HostGameScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     hostManager.onEvent = (evt) {
-      if (evt.type == NetEventType.revealTile) {
+      print('📩 Host recibió evento: ${evt.type}');
+
+      if (evt.type == NetEventType.revealTile.name) {
+        print('🎯 Host aplica reveal en: ${evt.data['index']}');
         bloc.add(TapCell(evt.data['index'] as int));
-      } else if (evt.type == NetEventType.flagTile) {
+      } else if (evt.type == NetEventType.flagTile.name) {
+        print('🚩 Host aplica flag en: ${evt.data['index']}');
         bloc.add(ToggleFlag(evt.data['index'] as int));
       }
     };
-
     return BlocProvider.value(
       value: bloc,
       child: BlocListener<GameBloc, GameState>(

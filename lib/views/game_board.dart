@@ -1,3 +1,4 @@
+import 'package:buscando_minas/logic/network/network_event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:buscando_minas/logic/bloc/game_bloc.dart';
@@ -20,12 +21,15 @@ class GameBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<GameBloc, GameState>(
       builder: (context, state) {
+        print('🔄 GameBoard rebuild con estado: ${state.runtimeType}');
         if (state is Playing) {
           final config = state.gameConfiguration!;
           final width = config.width;
           final height = config.height;
+          print(
+            '🎯 Cliente recibió tablero: celda[0] = ${state.cells[0].content}',
+          );
           final locked = !isHost && state.currentPlayerId != myPlayerId;
-
           return Column(
             children: [
               Padding(
@@ -50,49 +54,51 @@ class GameBoard extends StatelessWidget {
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: width,
-                            crossAxisSpacing: 1,
-                            mainAxisSpacing: 1,
-                            childAspectRatio: width / height,
-                          ),
+                                crossAxisCount: width,
+                                crossAxisSpacing: 1,
+                                mainAxisSpacing: 1,
+                                childAspectRatio: width / height,
+                              ),
                           padding: const EdgeInsets.all(2),
                           itemCount: state.cells.length,
                           itemBuilder: (context, index) {
                             return GestureDetector(
-                              onTap: locked
-                                  ? null
-                                  : () {
-                                      if (isHost) {
-                                        context
-                                            .read<GameBloc>()
-                                            .add(TapCell(index));
-                                      } else {
-                                        clientManager!.send({
-                                          'type': 'revealTile',
-                                          'data': {
-                                            'index': index,
-                                            'playerId': myPlayerId,
-                                          },
-                                        });
-                                      }
-                                    },
-                              onLongPress: locked
-                                  ? null
-                                  : () {
-                                      if (isHost) {
-                                        context
-                                            .read<GameBloc>()
-                                            .add(ToggleFlag(index));
-                                      } else {
-                                        clientManager!.send({
-                                          'type': 'flagTile',
-                                          'data': {
-                                            'index': index,
-                                            'playerId': myPlayerId,
-                                          },
-                                        });
-                                      }
-                                    },
+                              onTap: () {
+                                if (!locked) {
+                                  if (isHost) {
+                                    context.read<GameBloc>().add(
+                                      TapCell(index),
+                                    );
+                                  } else if (clientManager != null) {
+                                    print(
+                                      '📨 Cliente envía revealTile: $index',
+                                    );
+                                    clientManager!.send(
+                                      NetEvent(
+                                        type: NetEventType.revealTile,
+                                        data: {'index': index},
+                                      ).toJson(),
+                                    );
+                                  }
+                                }
+                              },
+                              onLongPress: () {
+                                if (!locked) {
+                                  if (isHost) {
+                                    context.read<GameBloc>().add(
+                                      ToggleFlag(index),
+                                    );
+                                  } else if (clientManager != null) {
+                                    print('📨 Cliente envía flagTile: $index');
+                                    clientManager!.send(
+                                      NetEvent(
+                                        type: NetEventType.flagTile,
+                                        data: {'index': index},
+                                      ).toJson(),
+                                    );
+                                  }
+                                }
+                              },
                               child: CellView(cell: state.cells[index]),
                             );
                           },
