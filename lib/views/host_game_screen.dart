@@ -17,6 +17,7 @@ class HostGameScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Escucha eventos del cliente
     hostManager.onEvent = (evt) {
       print('📩 Host recibió evento: ${evt.type}');
 
@@ -28,28 +29,32 @@ class HostGameScreen extends StatelessWidget {
         bloc.add(ToggleFlag(evt.data['index'] as int));
       }
     };
+
     return BlocProvider.value(
       value: bloc,
-      child: BlocListener<GameBloc, GameState>(
-        listener: (context, state) {
-          if (state is Playing) {
-            final evt = NetEvent(
-              type: NetEventType.stateUpdate,
-              data: state.toJson(),
-            );
-            print('→ Enviando gameStart al cliente: ${evt.toJson()}');
-            hostManager.send(evt.toJson());
-            print('← gameStart enviado');
-          }
+      child: BlocBuilder<GameBloc, GameState>(
+        builder: (context, state) {
+          return BlocListener<GameBloc, GameState>(
+            listener: (context, state) {
+              if (state is Playing) {
+                print('📤 Host va a enviar stateUpdate con ${state.cells.length} celdas');
+                final evt = NetEvent(
+                  type: NetEventType.stateUpdate,
+                  data: state.toJson(),
+                );
+                hostManager.send(evt.toJson());
+              }
+            },
+            child: Scaffold(
+              backgroundColor: Colors.black,
+              appBar: AppBar(
+                backgroundColor: Colors.black54,
+                title: const Center(child: Text('Host: Minesweeper')),
+              ),
+              body: GameBoard(isHost: true),
+            ),
+          );
         },
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black54,
-            title: const Center(child: Text('Host: Minesweeper')),
-          ),
-          body: const GameBoard(isHost: true),
-        ),
       ),
     );
   }

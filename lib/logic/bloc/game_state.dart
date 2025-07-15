@@ -8,10 +8,6 @@ abstract class GameState extends Equatable {
   List<Object?> get props => [gameConfiguration];
 }
 
-class GameInitial extends GameState {
-  const GameInitial(super.gameConfiguration);
-}
-
 class Playing extends GameState {
   final List<Cell> cells;
   final int flagsRemaining;
@@ -27,10 +23,14 @@ class Playing extends GameState {
   }) : super(configuration);
 
   @override
-  List<Object?> get props => super.props
-    ..addAll([cells, flagsRemaining, elapsedSeconds, currentPlayerId]);
+  List<Object?> get props => [
+        gameConfiguration,
+        cells,
+        flagsRemaining,
+        elapsedSeconds,
+        currentPlayerId,
+      ];
 
-  /// Fábrica para reconstruir desde JSON y config
   factory Playing.fromJson(Map<String, dynamic> json, GameConfiguration config) {
     final cellList = (json['cells'] as List)
         .map((e) => CellSerialization.fromJson(e as Map<String, dynamic>))
@@ -44,7 +44,6 @@ class Playing extends GameState {
     );
   }
 
-  /// Convierte a JSON para enviar
   Map<String, dynamic> toJson() {
     return {
       'cells': cells.map((c) => c.toJson()).toList(),
@@ -53,6 +52,10 @@ class Playing extends GameState {
       'currentPlayerId': currentPlayerId,
     };
   }
+}
+
+class GameInitial extends GameState {
+  const GameInitial(super.gameConfiguration);
 }
 
 class GameOver extends GameState {

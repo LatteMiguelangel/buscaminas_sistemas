@@ -7,7 +7,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 class CellView extends StatelessWidget {
   final Cell cell;
 
-  const CellView({super.key, required this.cell});
+  // ignore: prefer_const_constructors_in_immutables
+  CellView({super.key, required this.cell});
 
   @override
   Widget build(BuildContext context) {

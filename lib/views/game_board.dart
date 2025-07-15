@@ -10,7 +10,7 @@ class GameBoard extends StatelessWidget {
   final String? myPlayerId;
   final NetworkClient? clientManager;
 
-  const GameBoard({
+  GameBoard({
     super.key,
     required this.isHost,
     this.myPlayerId,
@@ -26,10 +26,13 @@ class GameBoard extends StatelessWidget {
           final config = state.gameConfiguration!;
           final width = config.width;
           final height = config.height;
+
           print(
             '🎯 Cliente recibió tablero: celda[0] = ${state.cells[0].content}',
           );
+
           final locked = !isHost && state.currentPlayerId != myPlayerId;
+
           return Column(
             children: [
               Padding(
@@ -37,10 +40,16 @@ class GameBoard extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text("🚩 ${state.flagsRemaining}"),
-                    Text("⏱ ${_formatTime(state.elapsedSeconds)}"),
+                    Text("🚩 ${state.flagsRemaining}",
+                        style: const TextStyle(color: Colors.white)),
+                    Text("⏱ ${_formatTime(state.elapsedSeconds)}",
+                        style: const TextStyle(color: Colors.white)),
                   ],
                 ),
+              ),
+              Text(
+                "🎮 Turno de: ${state.currentPlayerId}",
+                style: const TextStyle(color: Colors.white),
               ),
               Expanded(
                 child: LayoutBuilder(
@@ -54,11 +63,11 @@ class GameBoard extends StatelessWidget {
                           physics: const NeverScrollableScrollPhysics(),
                           gridDelegate:
                               SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: width,
-                                crossAxisSpacing: 1,
-                                mainAxisSpacing: 1,
-                                childAspectRatio: width / height,
-                              ),
+                            crossAxisCount: width,
+                            crossAxisSpacing: 1,
+                            mainAxisSpacing: 1,
+                            childAspectRatio: width / height,
+                          ),
                           padding: const EdgeInsets.all(2),
                           itemCount: state.cells.length,
                           itemBuilder: (context, index) {
@@ -67,12 +76,10 @@ class GameBoard extends StatelessWidget {
                                 if (!locked) {
                                   if (isHost) {
                                     context.read<GameBloc>().add(
-                                      TapCell(index),
-                                    );
+                                          TapCell(index),
+                                        );
                                   } else if (clientManager != null) {
-                                    print(
-                                      '📨 Cliente envía revealTile: $index',
-                                    );
+                                    print('📨 Cliente envía revealTile: $index');
                                     clientManager!.send(
                                       NetEvent(
                                         type: NetEventType.revealTile,
@@ -86,8 +93,8 @@ class GameBoard extends StatelessWidget {
                                 if (!locked) {
                                   if (isHost) {
                                     context.read<GameBloc>().add(
-                                      ToggleFlag(index),
-                                    );
+                                          ToggleFlag(index),
+                                        );
                                   } else if (clientManager != null) {
                                     print('📨 Cliente envía flagTile: $index');
                                     clientManager!.send(
@@ -99,7 +106,10 @@ class GameBoard extends StatelessWidget {
                                   }
                                 }
                               },
-                              child: CellView(cell: state.cells[index]),
+                              child: CellView(
+                                key: ValueKey(state.cells[index]), // ✅ Clave única
+                                cell: state.cells[index],
+                              ),
                             );
                           },
                         ),
@@ -111,11 +121,13 @@ class GameBoard extends StatelessWidget {
             ],
           );
         } else if (state is GameOver) {
-          return Center(child: Text('💥 Has perdido'));
+          return const Center(child: Text('💥 Has perdido', style: TextStyle(color: Colors.white)));
         } else if (state is Victory) {
-          return Center(child: Text('🎉 Has ganado'));
+          return const Center(child: Text('🎉 Has ganado', style: TextStyle(color: Colors.white)));
         } else {
-          return const Center(child: CircularProgressIndicator());
+          return const Center(
+            child: CircularProgressIndicator(color: Colors.greenAccent),
+          );
         }
       },
     );
