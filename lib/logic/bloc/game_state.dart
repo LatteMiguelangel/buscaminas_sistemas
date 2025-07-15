@@ -15,7 +15,7 @@ class Playing extends GameState {
   final String currentPlayerId;
 
   const Playing({
-    GameConfiguration? configuration,
+    required GameConfiguration? configuration,
     required this.cells,
     required this.flagsRemaining,
     this.elapsedSeconds = 0,
@@ -50,6 +50,11 @@ class Playing extends GameState {
       'flagsRemaining': flagsRemaining,
       'elapsedSeconds': elapsedSeconds,
       'currentPlayerId': currentPlayerId,
+      'configuration': {
+        'width': gameConfiguration?.width,
+        'height': gameConfiguration?.height,
+        'numberOfBombs': gameConfiguration?.numberOfBombs,
+      },
     };
   }
 }
@@ -63,7 +68,7 @@ class GameOver extends GameState {
   final bool won;
 
   const GameOver({
-    GameConfiguration? configuration,
+    required GameConfiguration? configuration,
     required this.cells,
     required this.won,
   }) : super(configuration);

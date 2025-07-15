@@ -10,7 +10,7 @@ class GameBoard extends StatelessWidget {
   final String? myPlayerId;
   final NetworkClient? clientManager;
 
-  GameBoard({
+  const GameBoard({
     super.key,
     required this.isHost,
     this.myPlayerId,
@@ -26,10 +26,6 @@ class GameBoard extends StatelessWidget {
           final config = state.gameConfiguration!;
           final width = config.width;
           final height = config.height;
-
-          print(
-            '🎯 Cliente recibió tablero: celda[0] = ${state.cells[0].content}',
-          );
 
           final locked = !isHost && state.currentPlayerId != myPlayerId;
 
@@ -107,7 +103,7 @@ class GameBoard extends StatelessWidget {
                                 }
                               },
                               child: CellView(
-                                key: ValueKey(state.cells[index]), // ✅ Clave única
+                                key: ValueKey(state.cells[index]),
                                 cell: state.cells[index],
                               ),
                             );

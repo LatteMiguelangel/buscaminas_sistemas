@@ -44,6 +44,20 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
           );
           final playing = Playing.fromJson(map, _config);
           _bloc.add(SetPlayingState(playing));
+
+          // Enviar confirmación de estado al host
+          if (_initialized) {
+            final currentState = _bloc.state;
+            if (currentState is Playing) {
+              widget.clientManager.send(
+                NetEvent(
+                  type: NetEventType.stateUpdate,
+                  data: currentState.toJson(),
+                ).toJson(),
+              );
+            }
+          }
+
           if (!_initialized) {
             setState(() => _initialized = true);
           }

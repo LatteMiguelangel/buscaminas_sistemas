@@ -21,12 +21,17 @@ class HostGameScreen extends StatelessWidget {
     hostManager.onEvent = (evt) {
       print('📩 Host recibió evento: ${evt.type}');
 
-      if (evt.type == NetEventType.revealTile.name) {
+      if (evt.type == NetEventType.revealTile) {
         print('🎯 Host aplica reveal en: ${evt.data['index']}');
         bloc.add(TapCell(evt.data['index'] as int));
-      } else if (evt.type == NetEventType.flagTile.name) {
+      } else if (evt.type == NetEventType.flagTile) {
         print('🚩 Host aplica flag en: ${evt.data['index']}');
         bloc.add(ToggleFlag(evt.data['index'] as int));
+      } else if (evt.type == NetEventType.stateUpdate) {
+        print('🔄 Host recibe estado completo del cliente');
+        final map = evt.data;
+        final playing = Playing.fromJson(map, bloc.configuration);
+        bloc.add(SetPlayingState(playing));
       }
     };
 
@@ -37,7 +42,7 @@ class HostGameScreen extends StatelessWidget {
           return BlocListener<GameBloc, GameState>(
             listener: (context, state) {
               if (state is Playing) {
-                print('📤 Host va a enviar stateUpdate con ${state.cells.length} celdas');
+                print('📤 Host envía stateUpdate con ${state.cells.length} celdas');
                 final evt = NetEvent(
                   type: NetEventType.stateUpdate,
                   data: state.toJson(),
@@ -51,7 +56,10 @@ class HostGameScreen extends StatelessWidget {
                 backgroundColor: Colors.black54,
                 title: const Center(child: Text('Host: Minesweeper')),
               ),
-              body: GameBoard(isHost: true),
+              body: GameBoard(
+                isHost: true,
+                myPlayerId: 'host',
+              ),
             ),
           );
         },

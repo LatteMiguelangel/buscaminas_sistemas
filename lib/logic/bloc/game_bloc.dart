@@ -1,4 +1,3 @@
-// GameBloc sincronizado bidireccionalmente
 import 'dart:async';
 import 'dart:math';
 import 'package:bloc/bloc.dart';
@@ -59,6 +58,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
 
   void _togglePlayer() {
     _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
+    print('🔄 Cambio de turno a: $_currentPlayerId');
   }
 
   GameBloc(this.configuration) : super(GameInitial(configuration)) {
@@ -78,7 +78,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         Playing(
           configuration: configuration,
           cells: cells,
-          flagsRemaining: configuration.numberOfBombs,
+          flagsRemaining: configuration.numberOfBombs - flagsPlaced,
           elapsedSeconds: _elapsedSeconds,
           currentPlayerId: _currentPlayerId,
         ),
@@ -88,6 +88,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     on<TapCell>(_onTapCell);
     on<ToggleFlag>(_onToggleFlag);
     on<UpdateTime>((event, emit) {
+      _elapsedSeconds++;
       final currentState = state;
       if (currentState is Playing) {
         emit(
@@ -131,9 +132,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         }
       }
       _timer?.cancel();
-      emit(
-        GameOver(configuration: configuration, cells: updatedCells, won: false),
-      );
+      emit(GameOver(configuration: configuration, cells: updatedCells, won: false));
       return;
     }
 
@@ -144,17 +143,19 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       configuration.height,
     );
 
-    _togglePlayer();
-
-    emit(
-      Playing(
-        configuration: configuration,
-        cells: updatedCells,
-        flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-        elapsedSeconds: _elapsedSeconds,
-        currentPlayerId: _currentPlayerId,
-      ),
-    );
+    // Verificar si el juego no ha terminado antes de cambiar turno
+    if (state is Playing) {
+      _togglePlayer();
+      emit(
+        Playing(
+          configuration: configuration,
+          cells: updatedCells,
+          flagsRemaining: configuration.numberOfBombs - flagsPlaced,
+          elapsedSeconds: _elapsedSeconds,
+          currentPlayerId: _currentPlayerId,
+        ),
+      );
+    }
   }
 
   void _onToggleFlag(ToggleFlag event, Emitter<GameState> emit) {
