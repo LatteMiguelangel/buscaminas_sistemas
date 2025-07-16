@@ -67,12 +67,12 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       _currentPlayerId = 'host';
       _timer?.cancel();
       final newState = Playing(
-          configuration: configuration,
-          cells: cells,
-          flagsRemaining: configuration.numberOfBombs,
-          elapsedSeconds: _elapsedSeconds,
-          currentPlayerId: _currentPlayerId,
-        );
+        configuration: configuration,
+        cells: cells,
+        flagsRemaining: configuration.numberOfBombs,
+        elapsedSeconds: _elapsedSeconds,
+        currentPlayerId: _currentPlayerId,
+      );
       emit(newState);
       onStateUpdated?.call(newState);
       _timer?.cancel();
@@ -91,20 +91,24 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       final currentState = state;
       if (currentState is Playing) {
         final newState = Playing(
-            configuration: configuration,
-            cells: currentState.cells,
-            flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-            elapsedSeconds: _elapsedSeconds,
-            currentPlayerId: _currentPlayerId,
-          );
+          configuration: configuration,
+          cells: currentState.cells,
+          flagsRemaining: configuration.numberOfBombs - flagsPlaced,
+          elapsedSeconds: _elapsedSeconds,
+          currentPlayerId: currentState.currentPlayerId,
+        );
         emit(newState);
         onStateUpdated?.call(newState);
       }
     });
+
     on<ReplaceState>((event, emit) {
       emit(event.newState);
     });
     on<SetPlayingState>((event, emit) {
+      // Sincronizamos TIMER y TURNO con el servidor
+      _elapsedSeconds = event.playing.elapsedSeconds;
+      _currentPlayerId = event.playing.currentPlayerId;
       emit(event.playing);
     });
   }
@@ -119,6 +123,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
 
     if (tappedCell is! CellClosed || tappedCell.flagged) return;
 
+    // Si es bomba, revelamos todas y cambiamos turno
     if (tappedCell.content == CellContent.bomb) {
       for (int i = 0; i < cells.length; i++) {
         if (cells[i] is CellClosed &&
@@ -127,24 +132,30 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           cells[i] = CellOpened(index: i, content: CellContent.bomb);
         }
       }
-      _togglePlayer();
+      _togglePlayer(); // <<< Cambio de turno al fallar
       emit(GameOver(configuration: configuration, cells: cells, won: false));
       return;
     }
 
+    // Revelamos casillas según la lógica normal
     _revealCellsRecursively(
       cells,
       tappedIndex,
       configuration.width,
       configuration.height,
     );
+
+    // --- AQUÍ: cambiamos turno tras revelar con éxito ---
+    _togglePlayer();
+
+    // Emitimos estado actualizado con el jugador cambiado
     final newState = Playing(
-        configuration: configuration,
-        cells: cells,
-        flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-        elapsedSeconds: _elapsedSeconds,
-        currentPlayerId: _currentPlayerId,
-      );
+      configuration: configuration,
+      cells: cells,
+      flagsRemaining: configuration.numberOfBombs - flagsPlaced,
+      elapsedSeconds: _elapsedSeconds,
+      currentPlayerId: _currentPlayerId, // ya alternado
+    );
     emit(newState);
     onStateUpdated?.call(newState);
   }
@@ -173,12 +184,12 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     } else {
       _togglePlayer();
       final newState = Playing(
-          configuration: state.gameConfiguration,
-          cells: updatedCells,
-          flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-          elapsedSeconds: _elapsedSeconds,
-          currentPlayerId: _currentPlayerId,
-        );
+        configuration: state.gameConfiguration,
+        cells: updatedCells,
+        flagsRemaining: configuration.numberOfBombs - flagsPlaced,
+        elapsedSeconds: _elapsedSeconds,
+        currentPlayerId: _currentPlayerId,
+      );
       emit(newState);
       onStateUpdated?.call(newState);
     }
