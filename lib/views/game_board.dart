@@ -23,14 +23,14 @@ class GameBoard extends StatelessWidget {
       builder: (context, state) {
         print('🔄 GameBoard rebuild con estado: ${state.runtimeType}');
         if (state is Playing) {
+          // Bloqueo unificado: solo activo si es tu turno
+          final locked = state.currentPlayerId != myPlayerId;
           final config = state.gameConfiguration!;
           final width = config.width;
           final height = config.height;
-          print('🎯 Cliente recibió tablero: celda[0] = ${state.cells[0].content}');
-
-          // Bloqueo unificado: solo puedo jugar si currentPlayerId == myPlayerId
-          final locked = state.currentPlayerId != myPlayerId;
-
+          print(
+            '🎯 Cliente recibió tablero: celda[0] = ${state.cells[0].content}',
+          );
           return Column(
             children: [
               Padding(
@@ -53,69 +53,75 @@ class GameBoard extends StatelessWidget {
                 ),
               ),
               Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final gridSize = constraints.maxWidth;
-                    return Center(
-                      child: SizedBox(
-                        width: gridSize,
-                        height: gridSize,
-                        child: GridView.builder(
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: width,
-                            crossAxisSpacing: 1,
-                            mainAxisSpacing: 1,
-                            childAspectRatio: width / height,
+                child: AbsorbPointer(
+                  absorbing: locked,
+                  child: Opacity(
+                    opacity: locked ? 0.6 : 1.0,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final gridSize = constraints.maxWidth;
+                        return Center(
+                          child: SizedBox(
+                            width: gridSize,
+                            height: gridSize,
+                            child: GridView.builder(
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: width,
+                                    crossAxisSpacing: 1,
+                                    mainAxisSpacing: 1,
+                                    childAspectRatio: width / height,
+                                  ),
+                              padding: const EdgeInsets.all(2),
+                              itemCount: state.cells.length,
+                              itemBuilder: (context, index) {
+                                return GestureDetector(
+                                  onTap: () {
+                                    if (isHost) {
+                                      // Host hace jugada local
+                                      context.read<GameBloc>().add(
+                                        TapCell(index),
+                                      );
+                                    } else {
+                                      // Cliente envía revealTile
+                                      print(
+                                        '📤 Cliente envía revealTile: $index',
+                                      );
+                                      final ev = Event<RevealTileData>(
+                                        type: EventType.revealTile,
+                                        data: RevealTileData(index: index),
+                                      );
+                                      clientManager!.send(ev);
+                                    }
+                                  },
+                                  onLongPress: () {
+                                    if (isHost) {
+                                      // Host pone/quita bandera local
+                                      context.read<GameBloc>().add(
+                                        ToggleFlag(index),
+                                      );
+                                    } else {
+                                      // Cliente envía flagTile
+                                      print(
+                                        '📤 Cliente envía flagTile: $index',
+                                      );
+                                      final ev = Event<FlagTileData>(
+                                        type: EventType.flagTile,
+                                        data: FlagTileData(index: index),
+                                      );
+                                      clientManager!.send(ev);
+                                    }
+                                  },
+                                  child: CellView(cell: state.cells[index]),
+                                );
+                              },
+                            ),
                           ),
-                          padding: const EdgeInsets.all(2),
-                          itemCount: state.cells.length,
-                          itemBuilder: (context, index) {
-                            return GestureDetector(
-                              onTap: () {
-                                // Solo si no está bloqueado
-                                if (locked) return;
-
-                                if (isHost) {
-                                  // Jugador host hace jugada local
-                                  context.read<GameBloc>().add(TapCell(index));
-                                } else {
-                                  // Cliente envía evento revealTile
-                                  print('📤 Cliente envía revealTile: $index');
-                                  print('🛫 [CLIENTE] Enviando revealTile index=$index');
-                                  final ev = Event<RevealTileData>(
-                                    type: EventType.revealTile,
-                                    data: RevealTileData(index: index),
-                                  );
-                                  clientManager!.send(ev);
-                                }
-                              },
-                              onLongPress: () {
-                                // Solo si no está bloqueado
-                                if (locked) return;
-
-                                if (isHost) {
-                                  // Jugador host pone/quita bandera local
-                                  context.read<GameBloc>().add(ToggleFlag(index));
-                                } else {
-                                  // Cliente envía evento flagTile
-                                  print('📤 Cliente envía flagTile: $index');
-                                  print('🛫 [CLIENTE] Enviando flagTile index=$index');
-                                  final ev = Event<FlagTileData>(
-                                    type: EventType.flagTile,
-                                    data: FlagTileData(index: index),
-                                  );
-                                  clientManager!.send(ev);
-                                }
-                              },
-                              child: CellView(cell: state.cells[index]),
-                            );
-                          },
-                        ),
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ),
                 ),
               ),
             ],
