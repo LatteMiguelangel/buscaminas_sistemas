@@ -5,7 +5,7 @@ import 'package:buscando_minas/logic/network/network_manager.dart';
 import 'package:buscando_minas/logic/network/network_event.dart';
 import 'package:buscando_minas/views/game_board.dart';
 
-class HostGameScreen extends StatelessWidget {
+class HostGameScreen extends StatefulWidget {
   final GameBloc bloc;
   final NetworkHost hostManager;
 
@@ -16,41 +16,62 @@ class HostGameScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    hostManager.onEvent = (evt) {
-      print('📩 Host recibió evento: ${evt.type}');
+  State<HostGameScreen> createState() => _HostGameScreenState();
+}
 
-      if (evt.type == NetEventType.revealTile.name) {
-        print('🎯 Host aplica reveal en: ${evt.data['index']}');
-        bloc.add(TapCell(evt.data['index'] as int));
-      } else if (evt.type == NetEventType.flagTile.name) {
-        print('🚩 Host aplica flag en: ${evt.data['index']}');
-        bloc.add(ToggleFlag(evt.data['index'] as int));
+class _HostGameScreenState extends State<HostGameScreen> {
+  @override
+  void initState() {
+    super.initState();
+
+    // Escuchamos eventos del cliente
+    widget.hostManager.onEvent = (event) {
+      print('📩 HostGameScreen recibió evento: ${event.type}');
+      switch (event.type) {
+        case EventType.revealTile:
+          final data = event.data as RevealTileData;
+          widget.bloc.add(TapCell(data.index));
+          break;
+        case EventType.flagTile:
+          final data = event.data as FlagTileData;
+          widget.bloc.add(ToggleFlag(data.index));
+          break;
+        default:
+          print('🔔 Evento no manejado en Host: ${event.type}');
+          break;
       }
     };
+
+    // Cada vez que el bloc actualiza estado, enviamos stateUpdate
+    widget.bloc.onStateUpdated = (Playing state) {
+      final evt = Event<StateUpdateData>(
+        type: EventType.stateUpdate,
+        data: StateUpdateData(state.toJson()),
+      );
+      print('→ Enviando stateUpdate: ${evt.toJsonString().trim()}');
+      widget.hostManager.send(evt);
+    };
+  }
+
+  @override
+  @override
+  Widget build(BuildContext context) {
     return BlocProvider.value(
-      value: bloc,
-      child: BlocListener<GameBloc, GameState>(
-        listener: (context, state) {
-          if (state is Playing) {
-            final evt = NetEvent(
-              type: NetEventType.stateUpdate,
-              data: state.toJson(),
-            );
-            print('→ Enviando gameStart al cliente: ${evt.toJson()}');
-            hostManager.send(evt.toJson());
-            print('← gameStart enviado');
-          }
-        },
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.black54,
-            title: const Center(child: Text('Host: Minesweeper')),
-          ),
-          body: const GameBoard(isHost: true),
+      value: widget.bloc,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.black54,
+          title: const Center(child: Text('Host: Minesweeper')),
         ),
+        body: const GameBoard(isHost: true, myPlayerId: 'host'),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    widget.hostManager.stop();
+    super.dispose();
   }
 }

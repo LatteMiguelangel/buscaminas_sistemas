@@ -1,8 +1,6 @@
 import 'package:buscando_minas/views/host_screen.dart';
 import 'package:buscando_minas/views/join_screen.dart';
 import 'package:flutter/material.dart';
-
-
 class MultiplayerMenuScreen extends StatelessWidget {
   const MultiplayerMenuScreen({super.key});
 

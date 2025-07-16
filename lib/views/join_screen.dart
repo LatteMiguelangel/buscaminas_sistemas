@@ -26,10 +26,10 @@ class _JoinScreenState extends State<JoinScreen> {
           _error = null;
         });
       },
+      // Podemos dejarlo vacío o con un log genérico:
       onEvent: (event) {
-        // ⚠️ Solo para prueba inicial
-        print('📥 Evento recibido en cliente: ${event.toJson()}');
-        // Aquí puedes manejar el evento NetEventType.gameStart
+        // Un log provisional: 
+        print('📥 Cliente recibió evento preliminar: ${event.toJsonString().trim()}');
       },
     );
   }
@@ -50,7 +50,6 @@ class _JoinScreenState extends State<JoinScreen> {
 
   @override
   void dispose() {
-    //_clientManager.disconnect();
     _hostController.dispose();
     _portController.dispose();
     super.dispose();
@@ -109,9 +108,8 @@ class _JoinScreenState extends State<JoinScreen> {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder:
-                          (_) =>
-                              ClientGameScreen(clientManager: _clientManager),
+                      builder: (_) =>
+                          ClientGameScreen(clientManager: _clientManager),
                     ),
                   );
                 },

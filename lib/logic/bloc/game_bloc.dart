@@ -54,6 +54,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   Timer? _timer;
   int _elapsedSeconds = 0;
   String _currentPlayerId = 'host';
+  void Function(Playing)? onStateUpdated;
   void _togglePlayer() {
     _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
   }
@@ -65,35 +66,17 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       _elapsedSeconds = 0;
       _currentPlayerId = 'host';
       _timer?.cancel();
-      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (state is Playing) {
-          _elapsedSeconds++;
-          final current = state as Playing;
-          emit(
-            Playing(
-              configuration: configuration,
-              cells: current.cells,
-              flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-              elapsedSeconds: _elapsedSeconds,
-              currentPlayerId: _currentPlayerId,
-            ),
-          );
-        }
-      });
-
-      emit(
-        Playing(
+      final newState = Playing(
           configuration: configuration,
           cells: cells,
           flagsRemaining: configuration.numberOfBombs,
           elapsedSeconds: _elapsedSeconds,
           currentPlayerId: _currentPlayerId,
-        ),
-      );
-
+        );
+      emit(newState);
+      onStateUpdated?.call(newState);
       _timer?.cancel();
       _elapsedSeconds = 0;
-
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         _elapsedSeconds++;
         if (state is Playing) {
@@ -107,15 +90,15 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     on<UpdateTime>((event, emit) {
       final currentState = state;
       if (currentState is Playing) {
-        emit(
-          Playing(
+        final newState = Playing(
             configuration: configuration,
             cells: currentState.cells,
             flagsRemaining: configuration.numberOfBombs - flagsPlaced,
             elapsedSeconds: _elapsedSeconds,
             currentPlayerId: _currentPlayerId,
-          ),
-        );
+          );
+        emit(newState);
+        onStateUpdated?.call(newState);
       }
     });
     on<ReplaceState>((event, emit) {
@@ -155,16 +138,15 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       configuration.width,
       configuration.height,
     );
-
-    emit(
-      Playing(
+    final newState = Playing(
         configuration: configuration,
         cells: cells,
         flagsRemaining: configuration.numberOfBombs - flagsPlaced,
         elapsedSeconds: _elapsedSeconds,
         currentPlayerId: _currentPlayerId,
-      ),
-    );
+      );
+    emit(newState);
+    onStateUpdated?.call(newState);
   }
 
   void _onToggleFlag(ToggleFlag event, Emitter<GameState> emit) {
@@ -190,15 +172,15 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       emit(Victory(state.gameConfiguration));
     } else {
       _togglePlayer();
-      emit(
-        Playing(
+      final newState = Playing(
           configuration: state.gameConfiguration,
           cells: updatedCells,
           flagsRemaining: configuration.numberOfBombs - flagsPlaced,
           elapsedSeconds: _elapsedSeconds,
           currentPlayerId: _currentPlayerId,
-        ),
-      );
+        );
+      emit(newState);
+      onStateUpdated?.call(newState);
     }
   }
 

@@ -3,12 +3,10 @@ import 'package:buscando_minas/logic/model.dart';
 import 'package:buscando_minas/logic/network/network_event.dart';
 import 'package:buscando_minas/logic/network/network_manager.dart';
 import 'package:buscando_minas/views/host_game_screen.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class HostScreen extends StatefulWidget {
   const HostScreen({super.key});
-
   @override
   State<HostScreen> createState() => _HostScreenState();
 }
@@ -67,14 +65,14 @@ class _HostScreenState extends State<HostScreen> {
                 style: TextStyle(color: Colors.white),
               ),
             ] else ...[
-              Text(
+              const Text(
                 'Dirección para conectar:\n',
                 style: TextStyle(color: Colors.white70),
                 textAlign: TextAlign.center,
               ),
               SelectableText(
                 _addressPort!,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.greenAccent,
                   fontFamily: 'Courier',
                   fontSize: 20,
@@ -82,60 +80,56 @@ class _HostScreenState extends State<HostScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-              _clientConnected
-                  ? Column(
-                    children: [
-                      const Text(
-                        '✅ Cliente conectado',
-                        style: TextStyle(color: Colors.greenAccent),
+              if (_clientConnected) ...[
+                const Text(
+                  '✅ Cliente conectado',
+                  style: TextStyle(color: Colors.greenAccent),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    // 1. Configuración de juego
+                    final config = GameConfiguration(
+                      width: generateCustomConfiguration(10).width,
+                      height: generateCustomConfiguration(10).height,
+                      numberOfBombs: 10,
+                    );
+                    final seed = DateTime.now().millisecondsSinceEpoch;
+                    // 2. Creamos el evento GameStartData
+                    final ev = Event<GameStartData>(
+                      type: EventType.gameStart,
+                      data: GameStartData(
+                        width: config.width,
+                        height: config.height,
+                        numberOfBombs: config.numberOfBombs,
+                        seed: seed,
                       ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          final config = GameConfiguration(
-                            width: generateCustomConfiguration(10).width,
-                            height: generateCustomConfiguration(10).height,
-                            numberOfBombs: 10,
-                          );
-                          final seed = DateTime.now().millisecondsSinceEpoch;
-                          final event = NetEvent(
-                            type: NetEventType.gameStart,
-                            data: {
-                              'width': config.width,
-                              'height': config.height,
-                              'numberOfBombs': config.numberOfBombs,
-                              'seed': seed,
-                            },
-                          );
-                          if (kDebugMode) {
-                            print(
-                              '📤 Enviando gameStart al cliente: ${event.toJson()}',
-                            );
-                          }
-                          Future.delayed(const Duration(milliseconds: 300), () {
-                            _hostManager.send(event.toJson());
-                          });
-                          final bloc = GameBloc(config)
-                            ..add(InitializeGame(seed: seed));
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (_) => HostGameScreen(
-                                    bloc: bloc,
-                                    hostManager: _hostManager,
-                                  ),
-                            ),
-                          );
-                        },
-                        child: const Text('🚀 Empezar partida'),
+                    );
+                    print('📤 Enviando gameStart al cliente: ${ev.toJsonString().trim()}');
+                    // 3. Enviamos tras un pequeño retraso
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      _hostManager.send(ev);
+                    });
+                    // 4. Iniciamos el BLoC local y navegamos
+                    final bloc = GameBloc(config)..add(InitializeGame(seed: seed));
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => HostGameScreen(
+                          bloc: bloc,
+                          hostManager: _hostManager,
+                        ),
                       ),
-                    ],
-                  )
-                  : const Text(
-                    '⏳ Esperando cliente…',
-                    style: TextStyle(color: Colors.white70),
-                  ),
+                    );
+                  },
+                  child: const Text('🚀 Empezar partida'),
+                ),
+              ] else ...[
+                const Text(
+                  '⏳ Esperando cliente…',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ],
             ],
           ],
         ),

@@ -23,32 +23,44 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
   @override
   void initState() {
     super.initState();
-    widget.clientManager.onEvent = (NetEvent evt) {
-      print('🔔 Cliente recibió evento: $evt');
-      switch (evt.type) {
-        case NetEventType.gameStart:
-          final d = evt.data;
+
+    // Adaptamos el callback para recibir Event<T>
+    widget.clientManager.onEvent = (event) {
+      print('🔔 Cliente recibió evento: ${event.type}');
+      switch (event.type) {
+
+        case EventType.gameStart:
+          // Data tipada como GameStartData
+          final data = event.data as GameStartData;
           _config = GameConfiguration(
-            width: d['width'] as int,
-            height: d['height'] as int,
-            numberOfBombs: d['numberOfBombs'] as int,
+            width: data.width,
+            height: data.height,
+            numberOfBombs: data.numberOfBombs,
           );
-          final seed = d['seed'] as int;
+          final seed = data.seed;
           _bloc = GameBloc(_config)..add(InitializeGame(seed: seed));
           setState(() => _initialized = true);
           break;
-        case NetEventType.stateUpdate:
-          final map = evt.data;
+
+        case EventType.stateUpdate:
+          // Data tipada como StateUpdateData
+          final stateData = event.data as StateUpdateData;
           print(
-            '📦 Cliente recibe stateUpdate: ${map['cells']?.length} celdas',
+            '📦 Cliente recibe stateUpdate: '
+            '${(stateData.playingStateJson['cells'] as List).length} celdas',
           );
-          final playing = Playing.fromJson(map, _config);
+          final playing = Playing.fromJson(
+            Map<String, dynamic>.from(stateData.playingStateJson),
+            _config,
+          );
           _bloc.add(SetPlayingState(playing));
           if (!_initialized) {
             setState(() => _initialized = true);
           }
           break;
+
         default:
+          // Podemos manejar revealTile o flagTile si queremos reflejar taps
           break;
       }
     };

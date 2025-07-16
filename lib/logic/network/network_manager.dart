@@ -1,28 +1,25 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:buscando_minas/logic/network/network_event.dart';
-import 'package:flutter/foundation.dart';
 
 class NetworkHost {
   ServerSocket? _server;
   Socket? _clientSocket;
-
   String? address;
   int? port;
 
-  void Function(NetEvent event)? onEvent;
+  void Function(Event<dynamic> event)? onEvent;
   final void Function()? onClientConnected;
 
-  NetworkHost({this.onClientConnected, this.onEvent});
+  NetworkHost({ this.onClientConnected, this.onEvent });
 
   Future<void> startServer() async {
     _server = await ServerSocket.bind(InternetAddress.anyIPv4, 0);
     port = _server!.port;
 
     final interfaces = await NetworkInterface.list(
-      includeLoopback: false,
-      includeLinkLocal: false,
-    );
+      includeLoopback: false, includeLinkLocal: false);
     for (var iface in interfaces) {
       for (var addr in iface.addresses) {
         if (addr.type == InternetAddressType.IPv4) {
@@ -32,16 +29,18 @@ class NetworkHost {
       }
       if (address != null) break;
     }
+
     _server!.listen(_handleNewConnection);
   }
 
   void _handleNewConnection(Socket socket) {
-    if (_clientSocket != null) return;
+    if (_clientSocket != null) return; 
     _clientSocket = socket;
-    print(
-      '✅ Cliente conectado desde ${socket.remoteAddress.address}:${socket.remotePort}',
-    );
+
+    print('✅ Cliente conectado desde '
+      '${socket.remoteAddress.address}:${socket.remotePort}');
     onClientConnected?.call();
+
     socket.listen(
       _handleIncomingData,
       onDone: () {
@@ -51,6 +50,7 @@ class NetworkHost {
       onError: (e) {
         print('❌ Error en socket: $e');
       },
+      cancelOnError: true,
     );
   }
 
@@ -58,23 +58,25 @@ class NetworkHost {
     final msg = utf8.decode(data);
     LineSplitter.split(msg).forEach((line) {
       try {
-        final jsonMap = jsonDecode(line) as Map<String, dynamic>;
-        final event = NetEvent.fromJson(jsonMap);
+        final map = jsonDecode(line) as Map<String, dynamic>;
+        print('✈️ [HOST_RAW] Línea cruda del cliente: $line');
+        final event = Event.fromJsonMap(map);
+        print('🛬 [HOST] Evento parseado: ${event.type}, data=${event.data}');
         onEvent?.call(event);
-      } catch (_) {
-        print('⚠️ Error al decodificar mensaje (host): $line');
+      } catch (e) {
+        print('⚠️ Error al decodificar mensaje (host): $line → $e');
       }
     });
   }
 
-  void send(Map<String, dynamic> event) {
+  void send(Event<dynamic> event) {
     if (_clientSocket == null) {
-      print('⚠️ No hay cliente conectado, no se puede enviar el evento');
+      print('⚠️ No hay cliente conectado');
       return;
     }
-    final jsonData = jsonEncode(event);
-    print('🛰 Enviando JSON: $jsonData');
-    _clientSocket!.write('$jsonData\n');
+    final packet = event.toJsonString();
+    print('🛰 Enviando al cliente: $packet');
+    _clientSocket!.write(packet);
   }
 
   void stop() {
@@ -87,8 +89,10 @@ class NetworkHost {
 class NetworkClient {
   Socket? _socket;
   final void Function()? onConnected;
-  void Function(NetEvent event)? onEvent;
-  NetworkClient({this.onConnected, this.onEvent});
+  void Function(Event<dynamic> event)? onEvent;
+
+  NetworkClient({ this.onConnected, this.onEvent });
+
   Future<void> connect(String host, int port) async {
     _socket = await Socket.connect(host, port);
     print('✅ Conectado al host: $host:$port');
@@ -96,39 +100,41 @@ class NetworkClient {
     _socket!.listen(
       _handleIncomingData,
       onDone: () {
-        print("Conexión cerrada desde el cliente");
+        print('🚫 Conexión cerrada desde el host');
         _socket = null;
       },
       onError: (e) {
         print('❌ Error en cliente: $e');
       },
+      cancelOnError: true,
     );
   }
 
   void _handleIncomingData(Uint8List data) {
-    try {
-      final msg = utf8.decode(data);
-      print('📦 Mensaje recibido del host: $msg');
-      for (final line in LineSplitter.split(msg)) {
-        try {
-          final jsonMap = jsonDecode(line) as Map<String, dynamic>;
-          final event = NetEvent.fromJson(jsonMap);
-          onEvent?.call(event);
-        } catch (e) {
-          print('⚠️ Error al decodificar mensaje (cliente): $line');
-        }
+    final msg = utf8.decode(data);
+    LineSplitter.split(msg).forEach((line) {
+      try {
+        final map = jsonDecode(line) as Map<String, dynamic>;
+        final event = Event.fromJsonMap(map);
+        print('📥 Cliente recibió evento: ${event.type}');
+        onEvent?.call(event);
+      } catch (e) {
+        print('⚠️ Error al decodificar mensaje (cliente): $line → $e');
       }
-    } catch (e) {
-      print('⚠️ Error al manejar mensaje: $e');
+    });
+  }
+
+  void send(Event<dynamic> event) {
+    if (_socket == null) {
+      print('⚠️ No conectado al host');
+      return;
     }
+    final packet = event.toJsonString();
+    print('📤 Cliente envía: $packet');
+    _socket!.write(packet);
   }
-
-  void send(Map<String, dynamic> event) {
-    if (_socket == null) return;
-    _socket!.write('${jsonEncode(event)}\n');
-  }
-
   Future<void> disconnect() async {
     await _socket?.close();
+    _socket = null;
   }
 }

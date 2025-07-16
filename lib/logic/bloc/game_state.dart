@@ -27,14 +27,22 @@ class Playing extends GameState {
   }) : super(configuration);
 
   @override
-  List<Object?> get props => super.props
-    ..addAll([cells, flagsRemaining, elapsedSeconds, currentPlayerId]);
+  List<Object?> get props => [
+    ...super.props,
+    cells,
+    flagsRemaining,
+    elapsedSeconds,
+    currentPlayerId,
+  ];
 
-  /// Fábrica para reconstruir desde JSON y config
-  factory Playing.fromJson(Map<String, dynamic> json, GameConfiguration config) {
-    final cellList = (json['cells'] as List)
-        .map((e) => CellSerialization.fromJson(e as Map<String, dynamic>))
-        .toList();
+  factory Playing.fromJson(
+    Map<String, dynamic> json,
+    GameConfiguration config,
+  ) {
+    final cellList =
+        (json['cells'] as List)
+            .map((e) => CellSerialization.fromJson(e as Map<String, dynamic>))
+            .toList();
     return Playing(
       configuration: config,
       cells: cellList,
@@ -43,8 +51,6 @@ class Playing extends GameState {
       currentPlayerId: json['currentPlayerId'] as String,
     );
   }
-
-  /// Convierte a JSON para enviar
   Map<String, dynamic> toJson() {
     return {
       'cells': cells.map((c) => c.toJson()).toList(),
