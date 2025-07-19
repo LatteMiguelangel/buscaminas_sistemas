@@ -105,20 +105,26 @@ class _HostScreenState extends State<HostScreen> {
                         seed: seed,
                       ),
                     );
-                    print('📤 Enviando gameStart al cliente: ${ev.toJsonString().trim()}');
+                    print(
+                      '📤 Enviando gameStart al cliente: ${ev.toJsonString().trim()}',
+                    );
                     // 3. Enviamos tras un pequeño retraso
                     Future.delayed(const Duration(milliseconds: 300), () {
                       _hostManager.send(ev);
                     });
                     // 4. Iniciamos el BLoC local y navegamos
-                    final bloc = GameBloc(config)..add(InitializeGame(seed: seed));
+                    final bloc = GameBloc(
+                      config,
+                      enableTimer: false, // <-- deshabilitamos el timer
+                    )..add(InitializeGame(seed: seed));
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => HostGameScreen(
-                          bloc: bloc,
-                          hostManager: _hostManager,
-                        ),
+                        builder:
+                            (_) => HostGameScreen(
+                              bloc: bloc,
+                              hostManager: _hostManager,
+                            ),
                       ),
                     );
                   },

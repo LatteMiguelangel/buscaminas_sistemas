@@ -50,6 +50,7 @@ List<Cell> generateBoard(GameConfiguration config, {int? seed}) {
 
 class GameBloc extends Bloc<GameEvent, GameState> {
   final GameConfiguration configuration;
+  final bool enableTimer;
   int flagsPlaced = 0;
   Timer? _timer;
   int _elapsedSeconds = 0;
@@ -59,7 +60,8 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
   }
 
-  GameBloc(this.configuration) : super(GameInitial(configuration)) {
+  GameBloc(this.configuration, {this.enableTimer = true})
+    : super(GameInitial(configuration)) {
     on<InitializeGame>((event, emit) {
       final cells = generateBoard(configuration, seed: event.seed);
       flagsPlaced = 0;
@@ -77,30 +79,19 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       onStateUpdated?.call(newState);
       _timer?.cancel();
       _elapsedSeconds = 0;
-      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if(enableTimer){
+        _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         _elapsedSeconds++;
         if (state is Playing) {
           add(UpdateTime());
         }
       });
+      }
     });
 
     on<TapCell>(_onTapCell);
     on<ToggleFlag>(_onToggleFlag);
-    on<UpdateTime>((event, emit) {
-      final currentState = state;
-      if (currentState is Playing) {
-        final newState = Playing(
-          configuration: configuration,
-          cells: currentState.cells,
-          flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-          elapsedSeconds: _elapsedSeconds,
-          currentPlayerId: currentState.currentPlayerId,
-        );
-        emit(newState);
-        onStateUpdated?.call(newState);
-      }
-    });
+    on<UpdateTime>(_onUpdateTime);
 
     on<ReplaceState>((event, emit) {
       emit(event.newState);
@@ -111,6 +102,21 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       _currentPlayerId = event.playing.currentPlayerId;
       emit(event.playing);
     });
+  }
+
+  void _onUpdateTime(UpdateTime event, Emitter<GameState> emit) {
+    if (!enableTimer) return;  // ignorar si es multiplayer
+    final currentState = state;
+    if (currentState is Playing) {
+      final newState = Playing(
+        configuration: configuration,
+        cells: currentState.cells,
+        flagsRemaining: configuration.numberOfBombs - flagsPlaced,
+        elapsedSeconds: _elapsedSeconds,
+        currentPlayerId: currentState.currentPlayerId,
+      );
+      emit(newState);
+    }
   }
 
   void _onTapCell(TapCell event, Emitter<GameState> emit) {
@@ -145,7 +151,6 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       configuration.height,
     );
 
-    // --- AQUÍ: cambiamos turno tras revelar con éxito ---
     _togglePlayer();
 
     // Emitimos estado actualizado con el jugador cambiado
@@ -154,7 +159,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       cells: cells,
       flagsRemaining: configuration.numberOfBombs - flagsPlaced,
       elapsedSeconds: _elapsedSeconds,
-      currentPlayerId: _currentPlayerId, // ya alternado
+      currentPlayerId: _currentPlayerId,
     );
     emit(newState);
     onStateUpdated?.call(newState);
@@ -235,5 +240,11 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       if (!cell.hasBomb) return false;
     }
     return true;
+  }
+
+  @override
+  Future<void> close() {
+    _timer?.cancel();
+    return super.close();
   }
 }

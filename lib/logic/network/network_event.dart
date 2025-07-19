@@ -5,6 +5,7 @@ enum EventType {
   revealTile,
   flagTile,
   stateUpdate,
+  open,
 }
 
 class GameStartData {
@@ -113,6 +114,11 @@ class Event<T> {
           type: type,
           data: StateUpdateData.fromJson(dataMap),
         );
+      case EventType.open:
+        return Event<RevealTileData>(
+        type: type,
+        data: RevealTileData.fromJson(dataMap),
+      );
     }
   }
 }

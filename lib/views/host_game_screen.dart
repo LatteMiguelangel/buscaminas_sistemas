@@ -24,36 +24,50 @@ class _HostGameScreenState extends State<HostGameScreen> {
   void initState() {
     super.initState();
 
-    // Escuchamos eventos del cliente
+    print('🟢 Host: esperando eventos del cliente...');
+
     widget.hostManager.onEvent = (event) {
-      print('📩 HostGameScreen recibió evento: ${event.type}');
+      final currentState = widget.bloc.state;
+
+      print('📥 Evento recibido del cliente: ${event.type}');
+      print('🎯 Estado actual del host: $currentState');
+
+      if (currentState is! Playing ||
+          currentState.currentPlayerId != 'client') {
+        print('🔕 Ignorando evento fuera de turno: ${event.type}');
+        return;
+      }
+
       switch (event.type) {
-        case EventType.revealTile:
-          final data = event.data as RevealTileData;
-          widget.bloc.add(TapCell(data.index));
+        case EventType.open:
+          final index = event.data['index'] as int;
+          print('✅ Host: TapCell recibido del cliente en índice $index');
+          widget.bloc.add(TapCell(index));
           break;
         case EventType.flagTile:
           final data = event.data as FlagTileData;
+          print('🚩 Host: bandera recibida en índice ${data.index}');
           widget.bloc.add(ToggleFlag(data.index));
           break;
         default:
-          print('🔔 Evento no manejado en Host: ${event.type}');
-          break;
+          print('⚠️ Evento desconocido recibido: ${event.type}');
       }
     };
 
-    // Cada vez que el bloc actualiza estado, enviamos stateUpdate
     widget.bloc.onStateUpdated = (Playing state) {
+      print('📡 Host onStateUpdated: turno=${state.currentPlayerId}');
+
+      // Solo se envía al cliente el nuevo estado
       final evt = Event<StateUpdateData>(
         type: EventType.stateUpdate,
         data: StateUpdateData(state.toJson()),
       );
-      print('→ Enviando stateUpdate: ${evt.toJsonString().trim()}');
+
       widget.hostManager.send(evt);
+      print('📤 Host: stateUpdate enviado al cliente');
     };
   }
 
-  @override
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(

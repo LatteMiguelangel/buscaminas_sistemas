@@ -1,3 +1,5 @@
+// views/game_board.dart
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:buscando_minas/logic/bloc/game_bloc.dart';
@@ -23,35 +25,36 @@ class GameBoard extends StatelessWidget {
       builder: (context, state) {
         print('🔄 GameBoard rebuild con estado: ${state.runtimeType}');
         if (state is Playing) {
-          // Bloqueo unificado: solo activo si es tu turno
           final locked = state.currentPlayerId != myPlayerId;
+          print(
+            '🔒 GameBoard: currentPlayerId=${state.currentPlayerId} | '
+            'myPlayerId=$myPlayerId → locked=$locked',
+          );
           final config = state.gameConfiguration!;
           final width = config.width;
           final height = config.height;
-          print(
-            '🎯 Cliente recibió tablero: celda[0] = ${state.cells[0].content}',
-          );
+
           return Column(
             children: [
+              // Encabezado: banderas, turno y temporizador
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Contador de banderas
                     Text("🚩 ${state.flagsRemaining}"),
-                    // Indicador de turno
                     Text(
                       state.currentPlayerId == myPlayerId
                           ? "⬢ Tu turno"
                           : "⚪ Turno oponente",
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    // Temporizador
                     Text("⏱ ${_formatTime(state.elapsedSeconds)}"),
                   ],
                 ),
               ),
+
+              // Tablero de juego
               Expanded(
                 child: AbsorbPointer(
                   absorbing: locked,
@@ -80,37 +83,51 @@ class GameBoard extends StatelessWidget {
                                   onTap: () {
                                     if (isHost) {
                                       // Host hace jugada local
+                                      print('🖱 Host: tap en índice $index');
                                       context.read<GameBloc>().add(
                                         TapCell(index),
                                       );
                                     } else {
-                                      // Cliente envía revealTile
-                                      print(
-                                        '📤 Cliente envía revealTile: $index',
+                                      print('🖱 Cliente: tap en índice $index');
+
+                                      // Jugada local en cliente (solo visualmente)
+                                      context.read<GameBloc>().add(
+                                        TapCell(index),
                                       );
-                                      final ev = Event<RevealTileData>(
-                                        type: EventType.revealTile,
+
+                                      // Enviar al host para que lo procese oficialmente
+                                      final event = Event<RevealTileData>(
+                                        type: EventType.open,
                                         data: RevealTileData(index: index),
                                       );
-                                      clientManager!.send(ev);
+                                      clientManager!.send(event);
+                                      print(
+                                        '📤 Cliente: envío jugada al host → index=$index',
+                                      );
                                     }
                                   },
                                   onLongPress: () {
                                     if (isHost) {
                                       // Host pone/quita bandera local
+                                      print(
+                                        '🖱 Host: longPress en índice $index',
+                                      );
                                       context.read<GameBloc>().add(
                                         ToggleFlag(index),
                                       );
                                     } else {
                                       // Cliente envía flagTile
                                       print(
-                                        '📤 Cliente envía flagTile: $index',
+                                        '🖱 Cliente: intentando enviar flagTile para index=$index',
                                       );
                                       final ev = Event<FlagTileData>(
                                         type: EventType.flagTile,
                                         data: FlagTileData(index: index),
                                       );
                                       clientManager!.send(ev);
+                                      print(
+                                        '✅ Cliente: flagTile($index) enviado',
+                                      );
                                     }
                                   },
                                   child: CellView(cell: state.cells[index]),
@@ -127,9 +144,19 @@ class GameBoard extends StatelessWidget {
             ],
           );
         } else if (state is GameOver) {
-          return const Center(child: Text('💥 Has perdido'));
+          return const Center(
+            child: Text(
+              '💥 Has perdido',
+              style: TextStyle(color: Colors.red, fontSize: 24),
+            ),
+          );
         } else if (state is Victory) {
-          return const Center(child: Text('🎉 Has ganado'));
+          return const Center(
+            child: Text(
+              '🎉 ¡Has ganado!',
+              style: TextStyle(color: Colors.greenAccent, fontSize: 24),
+            ),
+          );
         } else {
           return const Center(child: CircularProgressIndicator());
         }

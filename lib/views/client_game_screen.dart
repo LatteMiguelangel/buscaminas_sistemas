@@ -28,7 +28,6 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
     widget.clientManager.onEvent = (event) {
       print('🔔 Cliente recibió evento: ${event.type}');
       switch (event.type) {
-
         case EventType.gameStart:
           // Data tipada como GameStartData
           final data = event.data as GameStartData;
@@ -38,25 +37,34 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
             numberOfBombs: data.numberOfBombs,
           );
           final seed = data.seed;
-          _bloc = GameBloc(_config)..add(InitializeGame(seed: seed));
+          _bloc = GameBloc(
+            _config,
+            enableTimer: false, // <-- deshabilitamos el timer
+          )..add(InitializeGame(seed: seed));
           setState(() => _initialized = true);
           break;
 
         case EventType.stateUpdate:
-          // Data tipada como StateUpdateData
-          final stateData = event.data as StateUpdateData;
+          final data = event.data as StateUpdateData;
           print(
-            '📦 Cliente recibe stateUpdate: '
-            '${(stateData.playingStateJson['cells'] as List).length} celdas',
+            '📥 Cliente stateUpdate JSON.currentPlayerId='
+            '${data.playingStateJson['currentPlayerId']}',
           );
           final playing = Playing.fromJson(
-            Map<String, dynamic>.from(stateData.playingStateJson),
+            Map<String, dynamic>.from(data.playingStateJson),
             _config,
           );
+          print(
+            '📥 Cliente construyó Playing.currentPlayerId='
+            '${playing.currentPlayerId}',
+          );
           _bloc.add(SetPlayingState(playing));
-          if (!_initialized) {
-            setState(() => _initialized = true);
-          }
+          break;
+
+        case EventType.open:
+          final data = event.data as RevealTileData;
+          print('📥 Cliente recibió echo de open: index=${data.index}');
+          // Esto es opcional si quieres que el cliente refleje su jugada también desde el host
           break;
 
         default:
