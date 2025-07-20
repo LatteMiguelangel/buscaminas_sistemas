@@ -23,20 +23,24 @@ class GameBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<GameBloc, GameState>(
       builder: (context, state) {
-        print('🔄 GameBoard rebuild con estado: ${state.runtimeType}');
+        // Debug debugPrint para ver el rebuild y estado
+        debugPrint('🔄 GameBoard rebuild con estado: ${state.runtimeType}');
+
         if (state is Playing) {
+          // Si no es tu turno, bloqueamos interacciones (absorb pointer + opacidad)
           final locked = state.currentPlayerId != myPlayerId;
-          print(
+          debugPrint(
             '🔒 GameBoard: currentPlayerId=${state.currentPlayerId} | '
             'myPlayerId=$myPlayerId → locked=$locked',
           );
+
           final config = state.gameConfiguration!;
           final width = config.width;
           final height = config.height;
 
           return Column(
             children: [
-              // Encabezado: banderas, turno y temporizador
+              // Barra superior con info de flags, turno y tiempo
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -54,7 +58,7 @@ class GameBoard extends StatelessWidget {
                 ),
               ),
 
-              // Tablero de juego
+              // Tablero en sí
               Expanded(
                 child: AbsorbPointer(
                   absorbing: locked,
@@ -82,53 +86,52 @@ class GameBoard extends StatelessWidget {
                                 return GestureDetector(
                                   onTap: () {
                                     if (isHost) {
-                                      // Host hace jugada local
-                                      print('🖱 Host: tap en índice $index');
+                                      // Host maneja la lógica local y emite evento BLoC
                                       context.read<GameBloc>().add(
                                         TapCell(index),
                                       );
-                                    } else {
-                                      print('🖱 Cliente: tap en índice $index');
-
-                                      // Jugada local en cliente (solo visualmente)
-                                      context.read<GameBloc>().add(
-                                        TapCell(index),
-                                      );
-
-                                      // Enviar al host para que lo procese oficialmente
-                                      final event = Event<RevealTileData>(
-                                        type: EventType.open,
-                                        data: RevealTileData(index: index),
-                                      );
-                                      clientManager!.send(event);
-                                      print(
-                                        '📤 Cliente: envío jugada al host → index=$index',
+                                      return;
+                                    }
+                                    // Cliente envía evento al host via NetworkClient
+                                    debugPrint(
+                                      '🖱 Cliente: tap en índice $index',
+                                    );
+                                    if (!locked && clientManager != null) {
+                                      clientManager?.send(
+                                        Event(
+                                          type: EventType.open,
+                                          data: {'index': index},
+                                        ),
                                       );
                                     }
+                                    debugPrint(
+                                      '📤 Cliente envía open: ${Event(type: EventType.open, data: {'index': index}).toJsonString().trim()}',
+                                    );
                                   },
                                   onLongPress: () {
+                                    debugPrint('$isHost');
                                     if (isHost) {
-                                      // Host pone/quita bandera local
-                                      print(
+                                      // Host maneja toggle bandera local
+                                      debugPrint(
                                         '🖱 Host: longPress en índice $index',
                                       );
                                       context.read<GameBloc>().add(
                                         ToggleFlag(index),
                                       );
-                                    } else {
-                                      // Cliente envía flagTile
-                                      print(
-                                        '🖱 Cliente: intentando enviar flagTile para index=$index',
-                                      );
-                                      final ev = Event<FlagTileData>(
-                                        type: EventType.flagTile,
-                                        data: FlagTileData(index: index),
-                                      );
-                                      clientManager!.send(ev);
-                                      print(
-                                        '✅ Cliente: flagTile($index) enviado',
-                                      );
+                                      return;
                                     }
+                                    // Cliente envía toggle flag al host
+                                    debugPrint(
+                                      '🖱 Cliente: intentando enviar flagTile para index=$index',
+                                    );
+                                    final ev = Event<FlagTileData>(
+                                      type: EventType.flagTile,
+                                      data: FlagTileData(index: index),
+                                    );
+                                    clientManager!.send(ev);
+                                    debugPrint(
+                                      '✅ Cliente: flagTile($index) enviado',
+                                    );
                                   },
                                   child: CellView(cell: state.cells[index]),
                                 );

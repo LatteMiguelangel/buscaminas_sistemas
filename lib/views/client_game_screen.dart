@@ -8,6 +8,7 @@ import 'package:buscando_minas/views/game_board.dart';
 
 class ClientGameScreen extends StatefulWidget {
   final NetworkClient clientManager;
+
   const ClientGameScreen({super.key, required this.clientManager});
 
   @override
@@ -24,12 +25,10 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
   void initState() {
     super.initState();
 
-    // Adaptamos el callback para recibir Event<T>
     widget.clientManager.onEvent = (event) {
-      print('🔔 Cliente recibió evento: ${event.type}');
+      debugPrint('🔔 Cliente recibió evento: ${event.type}');
       switch (event.type) {
         case EventType.gameStart:
-          // Data tipada como GameStartData
           final data = event.data as GameStartData;
           _config = GameConfiguration(
             width: data.width,
@@ -39,14 +38,15 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
           final seed = data.seed;
           _bloc = GameBloc(
             _config,
-            enableTimer: false, // <-- deshabilitamos el timer
+            enableTimer: false,
           )..add(InitializeGame(seed: seed));
+          if (!mounted) return;
           setState(() => _initialized = true);
           break;
 
         case EventType.stateUpdate:
           final data = event.data as StateUpdateData;
-          print(
+          debugPrint(
             '📥 Cliente stateUpdate JSON.currentPlayerId='
             '${data.playingStateJson['currentPlayerId']}',
           );
@@ -54,7 +54,7 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
             Map<String, dynamic>.from(data.playingStateJson),
             _config,
           );
-          print(
+          debugPrint(
             '📥 Cliente construyó Playing.currentPlayerId='
             '${playing.currentPlayerId}',
           );
@@ -63,12 +63,10 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
 
         case EventType.open:
           final data = event.data as RevealTileData;
-          print('📥 Cliente recibió echo de open: index=${data.index}');
-          // Esto es opcional si quieres que el cliente refleje su jugada también desde el host
+          debugPrint('📥 Cliente recibió eco open: index=${data.index}');
           break;
 
         default:
-          // Podemos manejar revealTile o flagTile si queremos reflejar taps
           break;
       }
     };
@@ -84,6 +82,7 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
         ),
       );
     }
+
     return BlocProvider.value(
       value: _bloc,
       child: Scaffold(

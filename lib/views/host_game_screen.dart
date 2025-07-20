@@ -1,3 +1,7 @@
+// ignore_for_file: avoid_print
+
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:buscando_minas/logic/bloc/game_bloc.dart';
@@ -20,72 +24,55 @@ class HostGameScreen extends StatefulWidget {
 }
 
 class _HostGameScreenState extends State<HostGameScreen> {
+  late final StreamSubscription<Event<dynamic>> _subscription;
+
   @override
   void initState() {
     super.initState();
+    _subscription = widget.hostManager.events.listen(_onClientEvent);
+    widget.bloc.onStateUpdated = _onStateUpdated;
+  }
 
-    print('🟢 Host: esperando eventos del cliente...');
+  void _onClientEvent(Event<dynamic> event) {
+    final state = widget.bloc.state;
+    if (state is! Playing || state.currentPlayerId != 'client') return;
 
-    widget.hostManager.onEvent = (event) {
-      final currentState = widget.bloc.state;
+    switch (event.type) {
+      case EventType.open:
+        final idx = (event.data as Map)['index'] as int;
+        widget.bloc.add(TapCell(idx));
+        break;
+      case EventType.flagTile:
+        final data = event.data as FlagTileData;
+        widget.bloc.add(ToggleFlag(data.index));
+        break;
+      default:
+    }
+  }
 
-      print('📥 Evento recibido del cliente: ${event.type}');
-      print('🎯 Estado actual del host: $currentState');
+  void _onStateUpdated(Playing state) {
+    final evt = Event<StateUpdateData>(
+      type: EventType.stateUpdate,
+      data: StateUpdateData(state.toJson()),
+    );
+    widget.hostManager.send(evt);
+  }
 
-      if (currentState is! Playing ||
-          currentState.currentPlayerId != 'client') {
-        print('🔕 Ignorando evento fuera de turno: ${event.type}');
-        return;
-      }
-
-      switch (event.type) {
-        case EventType.open:
-          final index = event.data['index'] as int;
-          print('✅ Host: TapCell recibido del cliente en índice $index');
-          widget.bloc.add(TapCell(index));
-          break;
-        case EventType.flagTile:
-          final data = event.data as FlagTileData;
-          print('🚩 Host: bandera recibida en índice ${data.index}');
-          widget.bloc.add(ToggleFlag(data.index));
-          break;
-        default:
-          print('⚠️ Evento desconocido recibido: ${event.type}');
-      }
-    };
-
-    widget.bloc.onStateUpdated = (Playing state) {
-      print('📡 Host onStateUpdated: turno=${state.currentPlayerId}');
-
-      // Solo se envía al cliente el nuevo estado
-      final evt = Event<StateUpdateData>(
-        type: EventType.stateUpdate,
-        data: StateUpdateData(state.toJson()),
-      );
-
-      widget.hostManager.send(evt);
-      print('📤 Host: stateUpdate enviado al cliente');
-    };
+  @override
+  void dispose() {
+    _subscription.cancel();
+    widget.hostManager.stop();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
       value: widget.bloc,
-      child: Scaffold(
+      child: const Scaffold(
         backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.black54,
-          title: const Center(child: Text('Host: Minesweeper')),
-        ),
-        body: const GameBoard(isHost: true, myPlayerId: 'host'),
+        body: GameBoard(isHost: true, myPlayerId: 'host'),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    widget.hostManager.stop();
-    super.dispose();
   }
 }

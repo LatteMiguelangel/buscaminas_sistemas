@@ -21,6 +21,7 @@ class _HostScreenState extends State<HostScreen> {
     super.initState();
     _hostManager = NetworkHost(
       onClientConnected: () {
+        if(!mounted) return;
         setState(() => _clientConnected = true);
       },
     );
@@ -105,7 +106,7 @@ class _HostScreenState extends State<HostScreen> {
                         seed: seed,
                       ),
                     );
-                    print(
+                    debugPrint(
                       '📤 Enviando gameStart al cliente: ${ev.toJsonString().trim()}',
                     );
                     // 3. Enviamos tras un pequeño retraso
@@ -115,7 +116,7 @@ class _HostScreenState extends State<HostScreen> {
                     // 4. Iniciamos el BLoC local y navegamos
                     final bloc = GameBloc(
                       config,
-                      enableTimer: false, // <-- deshabilitamos el timer
+                      enableTimer: false,
                     )..add(InitializeGame(seed: seed));
                     Navigator.pushReplacement(
                       context,

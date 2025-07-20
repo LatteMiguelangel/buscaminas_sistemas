@@ -1,12 +1,6 @@
 import 'dart:convert';
 
-enum EventType {
-  gameStart,
-  revealTile,
-  flagTile,
-  stateUpdate,
-  open,
-}
+enum EventType { gameStart, revealTile, flagTile, stateUpdate, open }
 
 class GameStartData {
   final int width;
@@ -22,11 +16,11 @@ class GameStartData {
   });
 
   Map<String, dynamic> toJson() => {
-        'width': width,
-        'height': height,
-        'numberOfBombs': numberOfBombs,
-        'seed': seed,
-      };
+    'width': width,
+    'height': height,
+    'numberOfBombs': numberOfBombs,
+    'seed': seed,
+  };
 
   static GameStartData fromJson(Map<String, dynamic> json) {
     return GameStartData(
@@ -40,29 +34,23 @@ class GameStartData {
 
 class RevealTileData {
   final int index;
-  RevealTileData({ required this.index });
-  Map<String, dynamic> toJson() => {
-        'index': index,
-      };
+  RevealTileData({required this.index});
+  Map<String, dynamic> toJson() => {'index': index};
 
   static RevealTileData fromJson(Map<String, dynamic> json) {
     return RevealTileData(index: json['index'] as int);
   }
 }
 
-
 class FlagTileData {
   final int index;
-  FlagTileData({ required this.index });
-  Map<String, dynamic> toJson() => {
-        'index': index,
-      };
+  FlagTileData({required this.index});
+  Map<String, dynamic> toJson() => {'index': index};
 
   static FlagTileData fromJson(Map<String, dynamic> json) {
     return FlagTileData(index: json['index'] as int);
   }
 }
-
 
 class StateUpdateData {
   final Map<String, dynamic> playingStateJson;
@@ -73,17 +61,16 @@ class StateUpdateData {
   }
 }
 
-
 class Event<T> {
   final EventType type;
   final T data;
-  Event({ required this.type, required this.data });
+  Event({required this.type, required this.data});
   String toJsonString() {
     final map = {
       'type': type.toString().split('.').last,
       'data': (data as dynamic).toJson(),
     };
-    return jsonEncode(map) + '\n';
+    return '${jsonEncode(map)}\n';
   }
 
   static Event<dynamic> fromJsonMap(Map<String, dynamic> map) {
@@ -116,9 +103,9 @@ class Event<T> {
         );
       case EventType.open:
         return Event<RevealTileData>(
-        type: type,
-        data: RevealTileData.fromJson(dataMap),
-      );
+          type: type,
+          data: RevealTileData.fromJson(dataMap),
+        );
     }
   }
 }

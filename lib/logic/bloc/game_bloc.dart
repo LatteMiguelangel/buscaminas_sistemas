@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:bloc/bloc.dart';
 import 'package:buscando_minas/logic/model.dart';
 import 'package:equatable/equatable.dart';
+
 part 'game_event.dart';
 part 'game_state.dart';
 
@@ -56,12 +57,13 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   int _elapsedSeconds = 0;
   String _currentPlayerId = 'host';
   void Function(Playing)? onStateUpdated;
+
   void _togglePlayer() {
     _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
   }
 
   GameBloc(this.configuration, {this.enableTimer = true})
-    : super(GameInitial(configuration)) {
+      : super(GameInitial(configuration)) {
     on<InitializeGame>((event, emit) {
       final cells = generateBoard(configuration, seed: event.seed);
       flagsPlaced = 0;
@@ -79,13 +81,13 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       onStateUpdated?.call(newState);
       _timer?.cancel();
       _elapsedSeconds = 0;
-      if(enableTimer){
+      if (enableTimer) {
         _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        _elapsedSeconds++;
-        if (state is Playing) {
-          add(UpdateTime());
-        }
-      });
+          _elapsedSeconds++;
+          if (state is Playing) {
+            add(UpdateTime());
+          }
+        });
       }
     });
 
@@ -96,16 +98,18 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     on<ReplaceState>((event, emit) {
       emit(event.newState);
     });
+
     on<SetPlayingState>((event, emit) {
-      // Sincronizamos TIMER y TURNO con el servidor
+      // Sincronizamos TIMER, TURNO y flags con el servidor
       _elapsedSeconds = event.playing.elapsedSeconds;
       _currentPlayerId = event.playing.currentPlayerId;
+      flagsPlaced = event.playing.cells.where((c) => c is CellClosed && c.flagged).length;
       emit(event.playing);
     });
   }
 
   void _onUpdateTime(UpdateTime event, Emitter<GameState> emit) {
-    if (!enableTimer) return;  // ignorar si es multiplayer
+    if (!enableTimer) return; // ignorar si es multiplayer
     final currentState = state;
     if (currentState is Playing) {
       final newState = Playing(
@@ -123,6 +127,9 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     final state = this.state;
     if (state is! Playing) return;
 
+    // Validar turno
+    if (state.currentPlayerId != _currentPlayerId) return;
+
     final tappedIndex = event.index;
     final cells = [...state.cells];
     final tappedCell = cells[tappedIndex];
@@ -138,8 +145,9 @@ class GameBloc extends Bloc<GameEvent, GameState> {
           cells[i] = CellOpened(index: i, content: CellContent.bomb);
         }
       }
-      _togglePlayer(); // <<< Cambio de turno al fallar
+      _togglePlayer(); // Cambio de turno al fallar
       emit(GameOver(configuration: configuration, cells: cells, won: false));
+      onStateUpdated?.call(state);
       return;
     }
 
@@ -169,6 +177,9 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     final state = this.state;
     if (state is! Playing) return;
 
+    // Validar turno
+    if (state.currentPlayerId != _currentPlayerId) return;
+
     final index = event.index;
     final cell = state.cells[index];
 
@@ -186,6 +197,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     if (_checkWinCondition(updatedCells)) {
       _timer?.cancel();
       emit(Victory(state.gameConfiguration));
+      onStateUpdated?.call(state);
     } else {
       _togglePlayer();
       final newState = Playing(

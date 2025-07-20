@@ -29,7 +29,7 @@ class _JoinScreenState extends State<JoinScreen> {
       // Podemos dejarlo vacío o con un log genérico:
       onEvent: (event) {
         // Un log provisional: 
-        print('📥 Cliente recibió evento preliminar: ${event.toJsonString().trim()}');
+        debugPrint('📥 Cliente recibió evento preliminar: ${event.toJsonString().trim()}');
       },
     );
   }
