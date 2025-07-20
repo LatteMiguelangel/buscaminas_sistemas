@@ -1,6 +1,6 @@
-import 'package:buscando_minas/logic/network/network_manager.dart';
-import 'package:buscando_minas/views/client_game_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:buscando_minas/logic/network/proxy_client.dart';
+import 'package:buscando_minas/views/client_game_screen.dart';
 
 class JoinScreen extends StatefulWidget {
   const JoinScreen({super.key});
@@ -12,26 +12,17 @@ class JoinScreen extends StatefulWidget {
 class _JoinScreenState extends State<JoinScreen> {
   final _hostController = TextEditingController();
   final _portController = TextEditingController();
-  late final NetworkClient _clientManager;
-  bool _connected = false;
+  late ProxyClient _client;
+  bool _connecting = false;
   String? _error;
+  bool _connected = false;
 
   @override
-  void initState() {
-    super.initState();
-    _clientManager = NetworkClient(
-      onConnected: () {
-        setState(() {
-          _connected = true;
-          _error = null;
-        });
-      },
-      // Podemos dejarlo vacío o con un log genérico:
-      onEvent: (event) {
-        // Un log provisional: 
-        debugPrint('📥 Cliente recibió evento preliminar: ${event.toJsonString().trim()}');
-      },
-    );
+  void dispose() {
+    _hostController.dispose();
+    _portController.dispose();
+    // No cerrar _client: lo usará ClientGameScreen
+    super.dispose();
   }
 
   Future<void> _connect() async {
@@ -41,18 +32,31 @@ class _JoinScreenState extends State<JoinScreen> {
       setState(() => _error = 'IP o puerto inválido');
       return;
     }
+
+    setState(() {
+      _connecting = true;
+      _error = null;
+    });
+
+    _client = ProxyClient(host: host, port: port);
     try {
-      await _clientManager.connect(host, port);
+      await _client.connect(role: 'client');
+      debugPrint('✅ ProxyClient (client) conectado');
+      setState(() => _connected = true);
     } catch (e) {
       setState(() => _error = 'Error al conectar: $e');
+    } finally {
+      setState(() => _connecting = false);
     }
   }
 
-  @override
-  void dispose() {
-    _hostController.dispose();
-    _portController.dispose();
-    super.dispose();
+  void _goToGame() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ClientGameScreen(client: _client),
+      ),
+    );
   }
 
   @override
@@ -63,7 +67,7 @@ class _JoinScreenState extends State<JoinScreen> {
         backgroundColor: Colors.black87,
         title: const Text(
           '🔍 Unirse a partida',
-          style: TextStyle(fontFamily: 'Courier', color: Colors.greenAccent),
+          style: TextStyle(color: Colors.greenAccent),
         ),
         centerTitle: true,
       ),
@@ -76,10 +80,11 @@ class _JoinScreenState extends State<JoinScreen> {
               controller: _hostController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: 'IP del host',
+                hintText: 'IP del servidor',
                 hintStyle: TextStyle(color: Colors.white54),
                 border: OutlineInputBorder(),
               ),
+              enabled: !_connecting && !_connected,
             ),
             const SizedBox(height: 16),
             TextField(
@@ -91,6 +96,7 @@ class _JoinScreenState extends State<JoinScreen> {
                 hintStyle: TextStyle(color: Colors.white54),
                 border: OutlineInputBorder(),
               ),
+              enabled: !_connecting && !_connected,
             ),
             const SizedBox(height: 24),
             if (_error != null) ...[
@@ -98,21 +104,23 @@ class _JoinScreenState extends State<JoinScreen> {
               const SizedBox(height: 12),
             ],
             ElevatedButton(
-              onPressed: _connect,
-              child: const Text('🔗 Conectar'),
+              onPressed:
+                  (_connecting || _connected) ? null : _connect,
+              child: _connecting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text('🔗 Conectar'),
             ),
             const SizedBox(height: 20),
             if (_connected)
               ElevatedButton(
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ClientGameScreen(clientManager: _clientManager),
-                    ),
-                  );
-                },
+                onPressed: _goToGame,
                 child: const Text('✅ Conectado: Unirse'),
               )
             else

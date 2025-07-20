@@ -1,7 +1,11 @@
+// lib/logic/bloc/game_bloc.dart
+
 import 'dart:async';
 import 'dart:math';
+
 import 'package:bloc/bloc.dart';
 import 'package:buscando_minas/logic/model.dart';
+import 'package:buscando_minas/logic/network/network_event.dart';  // ← para CellJson
 import 'package:equatable/equatable.dart';
 
 part 'game_event.dart';
@@ -56,60 +60,48 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   Timer? _timer;
   int _elapsedSeconds = 0;
   String _currentPlayerId = 'host';
-  void Function(Playing)? onStateUpdated;
 
-  void _togglePlayer() {
-    _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
-  }
+  /// Callback que el HostGameScreen usa para emitir diffs.
+  void Function(Playing)? onStateUpdated;
 
   GameBloc(this.configuration, {this.enableTimer = true})
       : super(GameInitial(configuration)) {
-    on<InitializeGame>((event, emit) {
-      final cells = generateBoard(configuration, seed: event.seed);
-      flagsPlaced = 0;
-      _elapsedSeconds = 0;
-      _currentPlayerId = 'host';
-      _timer?.cancel();
-      final newState = Playing(
-        configuration: configuration,
-        cells: cells,
-        flagsRemaining: configuration.numberOfBombs,
-        elapsedSeconds: _elapsedSeconds,
-        currentPlayerId: _currentPlayerId,
-      );
-      emit(newState);
-      onStateUpdated?.call(newState);
-      _timer?.cancel();
-      _elapsedSeconds = 0;
-      if (enableTimer) {
-        _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-          _elapsedSeconds++;
-          if (state is Playing) {
-            add(UpdateTime());
-          }
-        });
-      }
-    });
-
+    on<InitializeGame>(_onInitializeGame);
     on<TapCell>(_onTapCell);
     on<ToggleFlag>(_onToggleFlag);
     on<UpdateTime>(_onUpdateTime);
+    on<ReplaceState>(_onReplaceState);
+    on<SetPlayingState>(_onSetPlayingState);
+    on<ApplyCellUpdates>(_onApplyCellUpdates);
+  }
 
-    on<ReplaceState>((event, emit) {
-      emit(event.newState);
-    });
-
-    on<SetPlayingState>((event, emit) {
-      // Sincronizamos TIMER, TURNO y flags con el servidor
-      _elapsedSeconds = event.playing.elapsedSeconds;
-      _currentPlayerId = event.playing.currentPlayerId;
-      flagsPlaced = event.playing.cells.where((c) => c is CellClosed && c.flagged).length;
-      emit(event.playing);
-    });
+  void _onInitializeGame(InitializeGame event, Emitter<GameState> emit) {
+    final cells = generateBoard(configuration, seed: event.seed);
+    flagsPlaced = 0;
+    _elapsedSeconds = 0;
+    _currentPlayerId = 'host';
+    _timer?.cancel();
+    final newState = Playing(
+      configuration: configuration,
+      cells: cells,
+      flagsRemaining: configuration.numberOfBombs,
+      elapsedSeconds: _elapsedSeconds,
+      currentPlayerId: _currentPlayerId,
+    );
+    emit(newState);
+    onStateUpdated?.call(newState);
+    _timer?.cancel();
+    _elapsedSeconds = 0;
+    if (enableTimer) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        _elapsedSeconds++;
+        if (state is Playing) add(UpdateTime());
+      });
+    }
   }
 
   void _onUpdateTime(UpdateTime event, Emitter<GameState> emit) {
-    if (!enableTimer) return; // ignorar si es multiplayer
+    if (!enableTimer) return;
     final currentState = state;
     if (currentState is Playing) {
       final newState = Playing(
@@ -126,8 +118,6 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   void _onTapCell(TapCell event, Emitter<GameState> emit) {
     final state = this.state;
     if (state is! Playing) return;
-
-    // Validar turno
     if (state.currentPlayerId != _currentPlayerId) return;
 
     final tappedIndex = event.index;
@@ -136,32 +126,27 @@ class GameBloc extends Bloc<GameEvent, GameState> {
 
     if (tappedCell is! CellClosed || tappedCell.flagged) return;
 
-    // Si es bomba, revelamos todas y cambiamos turno
     if (tappedCell.content == CellContent.bomb) {
       for (int i = 0; i < cells.length; i++) {
         if (cells[i] is CellClosed &&
             (cells[i] as CellClosed).content == CellContent.bomb) {
-          _timer?.cancel();
           cells[i] = CellOpened(index: i, content: CellContent.bomb);
         }
       }
-      _togglePlayer(); // Cambio de turno al fallar
-      emit(GameOver(configuration: configuration, cells: cells, won: false));
+      _togglePlayer();
+      emit(GameOver(
+        configuration: configuration,
+        cells: cells,
+        won: false,
+      ));
       onStateUpdated?.call(state);
       return;
     }
 
-    // Revelamos casillas según la lógica normal
-    _revealCellsRecursively(
-      cells,
-      tappedIndex,
-      configuration.width,
-      configuration.height,
-    );
-
+    _revealCellsRecursively(cells, tappedIndex,
+        configuration.width, configuration.height);
     _togglePlayer();
 
-    // Emitimos estado actualizado con el jugador cambiado
     final newState = Playing(
       configuration: configuration,
       cells: cells,
@@ -176,32 +161,26 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   void _onToggleFlag(ToggleFlag event, Emitter<GameState> emit) {
     final state = this.state;
     if (state is! Playing) return;
-
-    // Validar turno
     if (state.currentPlayerId != _currentPlayerId) return;
 
     final index = event.index;
-    final cell = state.cells[index];
-
-    if (cell is! CellClosed) return;
-
-    if (!cell.flagged && flagsPlaced >= configuration.numberOfBombs) {
+    final cell = state.cells[index] as CellClosed;
+    if (cell.flagged == false && flagsPlaced >= configuration.numberOfBombs) {
       return;
     }
 
     final updatedCell = cell.copyWith(flagged: !cell.flagged);
-    final updatedCells = [...state.cells];
-    updatedCells[index] = updatedCell;
-
+    final updatedCells = [...state.cells]..[index] = updatedCell;
     flagsPlaced += updatedCell.flagged ? 1 : -1;
+
     if (_checkWinCondition(updatedCells)) {
       _timer?.cancel();
-      emit(Victory(state.gameConfiguration));
+      emit(Victory(configuration));
       onStateUpdated?.call(state);
     } else {
       _togglePlayer();
       final newState = Playing(
-        configuration: state.gameConfiguration,
+        configuration: configuration,
         cells: updatedCells,
         flagsRemaining: configuration.numberOfBombs - flagsPlaced,
         elapsedSeconds: _elapsedSeconds,
@@ -210,6 +189,51 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       emit(newState);
       onStateUpdated?.call(newState);
     }
+  }
+
+  void _onReplaceState(ReplaceState event, Emitter<GameState> emit) {
+    emit(event.newState);
+  }
+
+  void _onSetPlayingState(SetPlayingState event, Emitter<GameState> emit) {
+    final playing = event.playing;
+    _elapsedSeconds = playing.elapsedSeconds;
+    _currentPlayerId = playing.currentPlayerId;
+    flagsPlaced =
+        playing.cells.where((c) => c is CellClosed && (c).flagged).length;
+    emit(playing);
+  }
+
+  // Handler para aplicar los diffs parciales
+  void _onApplyCellUpdates(
+      ApplyCellUpdates event, Emitter<GameState> emit) {
+    final current = state;
+    if (current is! Playing) return;
+
+    final updatedCells = List<Cell>.from(current.cells);
+    for (final upd in event.updates) {
+      final content = CellContent.values[upd.content];
+      final idx = upd.index;
+      if (upd.opened) {
+        updatedCells[idx] = CellOpened(index: idx, content: content);
+      } else {
+        updatedCells[idx] =
+            CellClosed(index: idx, content: content, flagged: upd.flagged);
+      }
+    }
+
+    final newFlagsPlaced = updatedCells
+        .where((c) => c is CellClosed && (c).flagged)
+        .length;
+
+    final newState = Playing(
+      configuration: configuration,
+      cells: updatedCells,
+      flagsRemaining: configuration.numberOfBombs - newFlagsPlaced,
+      elapsedSeconds: current.elapsedSeconds,
+      currentPlayerId: current.currentPlayerId,
+    );
+    emit(newState);
   }
 
   void _revealCellsRecursively(
@@ -252,6 +276,10 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       if (!cell.hasBomb) return false;
     }
     return true;
+  }
+
+  void _togglePlayer() {
+    _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
   }
 
   @override

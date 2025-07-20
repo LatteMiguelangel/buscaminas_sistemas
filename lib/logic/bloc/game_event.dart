@@ -39,3 +39,11 @@ class SetPlayingState extends GameEvent {
   final Playing playing;
   const SetPlayingState(this.playing);
 }
+
+class ApplyCellUpdates extends GameEvent {
+  final List<CellJson> updates;
+  const ApplyCellUpdates(this.updates);
+
+  @override
+  List<Object> get props => [updates];
+}

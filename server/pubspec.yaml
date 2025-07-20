@@ -1,0 +1,15 @@
+# server/pubspec.yaml
+
+name: buscaminas_server
+description: Servidor TCP relé para Buscaminas multijugador
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: '>=2.18.0 <4.0.0'
+
+dependencies:
+  # No necesitamos paquetes externos, todo viene con dart:io y dart:convert
+
+dev_dependencies:
+  # Si quieres añadir tests, aquí podrías incluir package:test
