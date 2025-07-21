@@ -5,7 +5,7 @@ import 'dart:math';
 
 import 'package:bloc/bloc.dart';
 import 'package:buscando_minas/logic/model.dart';
-import 'package:buscando_minas/logic/network/network_event.dart';  // ← para CellJson
+import 'package:buscando_minas/logic/network/network_event.dart'; // ← para CellJson
 import 'package:equatable/equatable.dart';
 
 part 'game_event.dart';
@@ -65,7 +65,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   void Function(Playing)? onStateUpdated;
 
   GameBloc(this.configuration, {this.enableTimer = true})
-      : super(GameInitial(configuration)) {
+    : super(GameInitial(configuration)) {
     on<InitializeGame>(_onInitializeGame);
     on<TapCell>(_onTapCell);
     on<ToggleFlag>(_onToggleFlag);
@@ -134,17 +134,17 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         }
       }
       _togglePlayer();
-      emit(GameOver(
-        configuration: configuration,
-        cells: cells,
-        won: false,
-      ));
+      emit(GameOver(configuration: configuration, cells: cells, won: false));
       onStateUpdated?.call(state);
       return;
     }
 
-    _revealCellsRecursively(cells, tappedIndex,
-        configuration.width, configuration.height);
+    _revealCellsRecursively(
+      cells,
+      tappedIndex,
+      configuration.width,
+      configuration.height,
+    );
     _togglePlayer();
 
     final newState = Playing(
@@ -204,35 +204,43 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     emit(playing);
   }
 
-  // Handler para aplicar los diffs parciales
-  void _onApplyCellUpdates(
-      ApplyCellUpdates event, Emitter<GameState> emit) {
+  void _onApplyCellUpdates(ApplyCellUpdates event, Emitter<GameState> emit) {
     final current = state;
     if (current is! Playing) return;
 
+    // 1) Reconstruir lista de celdas aplicando cada delta
     final updatedCells = List<Cell>.from(current.cells);
     for (final upd in event.updates) {
       final content = CellContent.values[upd.content];
       final idx = upd.index;
+
       if (upd.opened) {
         updatedCells[idx] = CellOpened(index: idx, content: content);
       } else {
-        updatedCells[idx] =
-            CellClosed(index: idx, content: content, flagged: upd.flagged);
+        updatedCells[idx] = CellClosed(
+          index: idx,
+          content: content,
+          flagged: upd.flagged,
+        );
       }
     }
 
-    final newFlagsPlaced = updatedCells
-        .where((c) => c is CellClosed && (c).flagged)
-        .length;
+    // 2) Recalcular flags restantes
+    final newFlagsPlaced =
+        updatedCells.whereType<CellClosed>().where((c) => c.flagged).length;
 
+    // 3) Actualizar tu variable interna de quién tiene el turno ahora
+    _currentPlayerId = event.nextPlayerId;
+
+    // 4) Emitir el nuevo estado con el turno correcto
     final newState = Playing(
-      configuration: configuration,
+      configuration: current.gameConfiguration!,
       cells: updatedCells,
-      flagsRemaining: configuration.numberOfBombs - newFlagsPlaced,
+      flagsRemaining: current.gameConfiguration!.numberOfBombs - newFlagsPlaced,
       elapsedSeconds: current.elapsedSeconds,
-      currentPlayerId: current.currentPlayerId,
+      currentPlayerId: event.nextPlayerId,
     );
+
     emit(newState);
   }
 

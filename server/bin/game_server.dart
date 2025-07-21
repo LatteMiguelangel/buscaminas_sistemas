@@ -1,5 +1,8 @@
+// server/bin/game_server.dart
+
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 void main() async {
   const port = 4040;
@@ -10,48 +13,58 @@ void main() async {
   Socket? clientSocket;
 
   server.listen((socket) {
-    print(
-        '🔗 Conexión de ${socket.remoteAddress.address}:${socket.remotePort}');
-    socket.listen((raw) {
-      final msg = utf8.decode(raw).trim();
-      if (msg.isEmpty) return;
-      print('📥 [RAW] $msg');
+    print('🔗 Conexión de ${socket.remoteAddress.address}:${socket.remotePort}');
 
-      try {
-        final map = jsonDecode(msg) as Map<String, dynamic>;
-        final type = map['type'] as String;
+    // Buffer para reensamblar JSON-lines
+    String buffer = '';
 
-        // Registro de rol al inicio
-        if (type == 'register') {
-          final role = map['role'] as String;
-          if (role == 'host') {
-            hostSocket = socket;
-            print('🏠 Host registrado');
-          } else if (role == 'client') {
-            clientSocket = socket;
-            print('👤 Cliente registrado');
+    socket.listen((Uint8List raw) {
+      // 1) Acumula en el buffer
+      buffer += utf8.decode(raw);
 
-            // Notificar al host que el cliente ya está preparado
-            if (hostSocket != null) {
-              hostSocket!.writeln(
-                jsonEncode({'type': 'clientReady', 'data': {}}),
-              );
-              print('✈️ [SERVER→HOST] clientReady');
+      // 2) Parte en líneas completas
+      final parts = buffer.split('\n');
+      buffer = parts.removeLast(); // lo que quedó incompleto
+
+      for (final line in parts) {
+        final msg = line.trim();
+        if (msg.isEmpty) continue;
+
+        print('📥 [RAW] $msg');
+        try {
+          final map = jsonDecode(msg) as Map<String, dynamic>;
+          final type = map['type'] as String;
+
+          // Registro de rol
+          if (type == 'register') {
+            final role = map['role'] as String;
+            if (role == 'host') {
+              hostSocket = socket;
+              print('🏠 Host registrado');
+            } else {
+              clientSocket = socket;
+              print('👤 Cliente registrado');
+              // Notificar al host
+              if (hostSocket != null) {
+                hostSocket!
+                    .writeln(jsonEncode({'type': 'clientReady', 'data': {}}));
+                print('✈️ [SERVER→HOST] clientReady');
+              }
             }
+            continue;
           }
-          return;
-        }
 
-        // Reenvío según origen
-        if (socket == hostSocket && clientSocket != null) {
-          clientSocket!.writeln(msg);
-          print('✈️ [HOST→CLIENTE] $msg');
-        } else if (socket == clientSocket && hostSocket != null) {
-          hostSocket!.writeln(msg);
-          print('✈️ [CLIENTE→HOST] $msg');
+          // Reenvío de línea tal cual llegó
+          if (socket == hostSocket && clientSocket != null) {
+            clientSocket!.writeln(msg);
+            print('✈️ [HOST→CLIENTE] $msg');
+          } else if (socket == clientSocket && hostSocket != null) {
+            hostSocket!.writeln(msg);
+            print('✈️ [CLIENTE→HOST] $msg');
+          }
+        } catch (e) {
+          print('⚠️ Error procesando mensaje: $e');
         }
-      } catch (e) {
-        print('⚠️ Error procesando mensaje: $e');
       }
     }, onDone: () {
       if (socket == hostSocket) hostSocket = null;

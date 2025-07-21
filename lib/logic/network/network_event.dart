@@ -25,11 +25,11 @@ class GameStartData {
   });
 
   Map<String, dynamic> toJson() => {
-        'width': width,
-        'height': height,
-        'numberOfBombs': numberOfBombs,
-        'seed': seed,
-      };
+    'width': width,
+    'height': height,
+    'numberOfBombs': numberOfBombs,
+    'seed': seed,
+  };
 
   static GameStartData fromJson(Map<String, dynamic> json) {
     return GameStartData(
@@ -43,18 +43,19 @@ class GameStartData {
 
 class CellUpdateData {
   final List<CellJson> updates;
-
-  CellUpdateData(this.updates);
+  final String nextPlayerId;
+  CellUpdateData(this.updates, this.nextPlayerId);
 
   Map<String, dynamic> toJson() => {
-        'updates': updates.map((c) => c.toJson()).toList(),
-      };
+    'updates': updates.map((c) => c.toJson()).toList(),
+    'nextPlayerId': nextPlayerId,
+  };
 
   static CellUpdateData fromJson(Map<String, dynamic> json) {
     final list = List<Map<String, dynamic>>.from(json['updates'] as List);
-    return CellUpdateData(
-      list.map((m) => CellJson.fromJson(m)).toList(),
-    );
+    final upds = list.map((m) => CellJson.fromJson(m)).toList();
+    final next = json['nextPlayerId'] as String;
+    return CellUpdateData(upds, next);
   }
 }
 
@@ -72,18 +73,18 @@ class CellJson {
   });
 
   Map<String, dynamic> toJson() => {
-        'index': index,
-        'content': content,
-        'flagged': flagged,
-        'opened': opened,
-      };
+    'index': index,
+    'content': content,
+    'flagged': flagged,
+    'opened': opened,
+  };
 
   static CellJson fromJson(Map<String, dynamic> m) => CellJson(
-        index: m['index'] as int,
-        content: m['content'] as int,
-        flagged: m['flagged'] as bool,
-        opened: m['opened'] as bool,
-      );
+    index: m['index'] as int,
+    content: m['content'] as int,
+    flagged: m['flagged'] as bool,
+    opened: m['opened'] as bool,
+  );
 }
 
 class RevealTileData {
@@ -148,8 +149,9 @@ class Event<T> {
     final typeString = map['type'] as String;
     final type = EventType.values.firstWhere(
       (e) => e.toString().split('.').last == typeString,
-      orElse: () =>
-          throw ArgumentError('Tipo desconocido en protocolo: $typeString'),
+      orElse:
+          () =>
+              throw ArgumentError('Tipo desconocido en protocolo: $typeString'),
     );
     final dataMap = Map<String, dynamic>.from(map['data'] as Map);
 
@@ -185,10 +187,7 @@ class Event<T> {
         );
 
       case EventType.clientReady:
-        return Event<EmptyData>(
-          type: type,
-          data: EmptyData.fromJson(dataMap),
-        );
+        return Event<EmptyData>(type: type, data: EmptyData.fromJson(dataMap));
     }
   }
 

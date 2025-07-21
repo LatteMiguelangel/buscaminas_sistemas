@@ -7,87 +7,70 @@ import 'dart:typed_data';
 
 import 'package:buscando_minas/logic/network/network_event.dart';
 
-/// Cliente TCP que se conecta al servidor-relé externo.
-/// Envía un mensaje de registro inicial ("host" o "client") y
-/// luego reenvía/recibe todos los [Event<T>] mediante JSON lines.
 class ProxyClient {
   final String host;
   final int port;
 
   Socket? _socket;
-  final _eventController = StreamController<Event<dynamic>>.broadcast();
-  String _buffer = '';
+  final _events = StreamController<Event<dynamic>>.broadcast();
+  String _buf = '';
 
-  /// Stream de todos los eventos entrantes desde el servidor-relé.
-  Stream<Event<dynamic>> get events => _eventController.stream;
+  Stream<Event<dynamic>> get events => _events.stream;
 
   ProxyClient({required this.host, required this.port});
 
-  /// Conecta al servidor y envía el mensaje de registro de rol.
   Future<void> connect({required String role}) async {
-    _socket = await Socket.connect('192.168.1.117', 4040);
+    _socket = await Socket.connect(host, port);
+    print('✅ ProxyClient connected to $host:$port as $role');
 
-    // Enviar registro de rol
-    final registerMsg = jsonEncode({'type': 'register', 'role': role});
-    _socket!.writeln(registerMsg);
+    // mando el registro
+    final reg = jsonEncode({'type': 'register', 'role': role}) + '\n';
+    print('🚀 [ProxyClient] SEND REGISTER → $reg');
+    _socket!.write(reg);
+    await _socket!.flush();
 
-    // Escuchar datos entrantes
-    _socket!.listen(
-      _onData,
-      onDone: () {
-        print('❌ ProxyClient: conexión cerrada por el servidor');
-        _socket = null;
-        _eventController.close();
-      },
-      onError: (error) {
-        print('⚠️ ProxyClient: error de socket: $error');
-        _socket = null;
-        _eventController.addError(error);
-      },
-      cancelOnError: false,
-    );
-
-    print('✅ ProxyClient conectado a $host:$port como "$role"');
+    _socket!.listen(_onData, onDone: () {
+      print('❌ ProxyClient: socket closed by server');
+      _socket = null;
+      _events.close();
+    }, onError: (e) {
+      print('⚠️ ProxyClient: socket error $e');
+      _socket = null;
+      _events.addError(e);
+    });
   }
 
-  void _onData(Uint8List raw) {
-    // 1) Acumular datos entrantes
-    _buffer += utf8.decode(raw);
-
-    // 2) Partir el buffer por líneas completas
-    final parts = _buffer.split('\n');
-    _buffer = parts.removeLast(); // queda el fragmento incompleto
-
-    // 3) Parsear cada línea usando el método centralizado
-    for (final line in parts) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) continue;
+  void _onData(Uint8List chunk) {
+    _buf += utf8.decode(chunk);
+    final lines = _buf.split('\n');
+    _buf = lines.removeLast();
+    for (var line in lines) {
+      line = line.trim();
+      if (line.isEmpty) continue;
       try {
-        final event = Event.fromJsonString(trimmed);
-        _eventController.add(event);
-        print('📥 ProxyClient recibió: ${event.type}');
+        final evt = Event.fromJsonString(line);
+        _events.add(evt);
+        print('📥 [ProxyClient] RECEIVED → ${evt.type}');
       } catch (e) {
-        print('⚠️ ProxyClient fallo al parsear "$trimmed": $e');
+        print('⚠️ [ProxyClient] failed to parse "$line": $e');
       }
     }
   }
 
-  /// Envía un [Event] al relé externo.
   void send<T>(Event<T> event) {
+    final msg = event.toJsonString(); // ya trae '\n'
     if (_socket == null) {
-      print('⚠️ ProxyClient.send fallido: no conectado');
+      print('⚠️ [ProxyClient] SEND failed, not connected');
       return;
     }
-    // toJsonString ya incluye '\n', pero writeln añade uno más
-    final msg = event.toJsonString().trim();
-    _socket!.writeln(msg);
-    print('📤 ProxyClient envía: $msg');
+    print('🚀 [ProxyClient] SEND → $msg');
+    _socket!.write(msg);
+    _socket!.flush();
   }
 
-  /// Cierra la conexión y libera recursos.
   Future<void> dispose() async {
     await _socket?.close();
-    await _eventController.close();
+    await _events.close();
     print('🔒 ProxyClient disposed');
   }
 }

@@ -21,6 +21,7 @@ class TapCell extends GameEvent {
   @override
   List<Object> get props => [index];
 }
+
 class ToggleFlag extends GameEvent {
   final int index;
   const ToggleFlag(this.index);
@@ -42,8 +43,10 @@ class SetPlayingState extends GameEvent {
 
 class ApplyCellUpdates extends GameEvent {
   final List<CellJson> updates;
-  const ApplyCellUpdates(this.updates);
+  final String nextPlayerId;
+
+  const ApplyCellUpdates(this.updates, this.nextPlayerId);
 
   @override
-  List<Object> get props => [updates];
+  List<Object> get props => [updates, nextPlayerId];
 }
