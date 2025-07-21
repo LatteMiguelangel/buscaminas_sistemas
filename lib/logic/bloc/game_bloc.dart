@@ -55,7 +55,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   Timer? _timer;
   int _elapsedSeconds = 0;
   String _currentPlayerId = 'host';
-
+  final Map<int, String> _flagOwners = {}; // índice → jugador dueño
   void _togglePlayer() {
     _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
     print('🔄 Cambio de turno a: $_currentPlayerId');
@@ -174,16 +174,37 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     final index = event.index;
     final cell = currentState.cells[index];
     if (cell is! CellClosed) return;
-    // No más banderas de las permitidas
-    if (!cell.flagged && flagsPlaced >= configuration.numberOfBombs) return;
 
-    final updatedCell = cell.copyWith(flagged: !cell.flagged);
+    final wasFlagged = cell.flagged;
+
+    // 2) Si ya estaba marcada, solo el dueño puede quitarla
+    if (wasFlagged) {
+      if (_flagOwners[index] != event.playerId) {
+        return; // otro jugador no puede desmarcar
+      }
+    }
+    // 3) Si no estaba marcada, validar límite de banderas
+    else {
+      if (flagsPlaced >= configuration.numberOfBombs) {
+        return; // no hay más banderas disponibles
+      }
+    }
+
+    // 4) Toggle y actualizar flagsPlaced y dueños
+    final newFlagged = !wasFlagged;
+    if (newFlagged) {
+      flagsPlaced++;
+      _flagOwners[index] = event.playerId;
+    } else {
+      flagsPlaced--;
+      _flagOwners.remove(index);
+    }
+
+    // 5) Construir nuevo estado de celdas
     final updatedCells = List<Cell>.from(currentState.cells);
-    updatedCells[index] = updatedCell;
-    flagsPlaced += updatedCell.flagged ? 1 : -1;
+    updatedCells[index] = (cell).copyWith(flagged: newFlagged);
 
-    // 2) NO cambiamos de turno aquí
-    // Emitimos nuevo estado con mismo _currentPlayerId
+    // 6) Emitir sin cambiar turno
     emit(
       Playing(
         configuration: configuration,
@@ -225,15 +246,5 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         }
       }
     }
-  }
-
-  bool _checkWinCondition(List<Cell> cells) {
-    final flagged =
-        cells.where((cell) => cell is CellClosed && cell.flagged).toList();
-    if (flagged.length != configuration.numberOfBombs) return false;
-    for (var cell in flagged) {
-      if (!cell.hasBomb) return false;
-    }
-    return true;
   }
 }
