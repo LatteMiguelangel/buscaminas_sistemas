@@ -21,11 +21,27 @@ class HostGameScreen extends StatefulWidget {
 }
 
 class _HostGameScreenState extends State<HostGameScreen> {
-  List<Cell> _prevCells = [];
+  late List<Cell> _prevCells;
 
   @override
   void initState() {
     super.initState();
+
+    // 1) Si el estado ya es Playing (muy probable), inicializamos _prevCells al instante.
+    final current = widget.bloc.state;
+    if (current is Playing) {
+      _prevCells = List<Cell>.from(current.cells);
+    } else {
+      // 2) Si aún no está, nos suscribimos para cuando llegue el primer Playing.
+      widget.bloc.stream
+        .firstWhere((s) => s is Playing)
+        .then((s) {
+          final p = s as Playing;
+          _prevCells = List<Cell>.from(p.cells);
+        });
+    }
+
+    // Escucha jugadas y diffs entrantes del cliente
     widget.hostManager.onEvent = (evt) {
       switch (evt.type) {
         case NetEventType.revealTile:
@@ -35,38 +51,32 @@ class _HostGameScreenState extends State<HostGameScreen> {
           widget.bloc.add(ToggleFlag(evt.data['index'] as int));
           break;
         case NetEventType.stateUpdate:
-          // El cliente nos envía diffs
           final data = evt.data;
-          final cellsJson = data['cells'] as List<dynamic>;
-          final currentState = widget.bloc.state;
-          if (currentState is Playing) {
-            final updatedCells = List<Cell>.from(currentState.cells);
+          final List<dynamic> cellsJson = data['cells'] as List<dynamic>;
+          final state = widget.bloc.state;
+          if (state is Playing) {
+            final updated = List<Cell>.from(state.cells);
             for (var cj in cellsJson) {
               final cell = CellSerialization.fromJson(
-                  Map<String, dynamic>.from(cj as Map));
-              updatedCells[cell.index] = cell;
+                Map<String, dynamic>.from(cj as Map),
+              );
+              updated[cell.index] = cell;
             }
-            final newPlaying = Playing(
-              configuration: currentState.gameConfiguration,
-              cells: updatedCells,
-              flagsRemaining: data['flagsRemaining'] as int,
-              elapsedSeconds: data['elapsedSeconds'] as int,
-              currentPlayerId: data['currentPlayerId'] as String,
-            );
-            widget.bloc.add(SetPlayingState(newPlaying));
+            widget.bloc.add(SetPlayingState(
+              Playing(
+                configuration: state.gameConfiguration,
+                cells: updated,
+                flagsRemaining: data['flagsRemaining'] as int,
+                elapsedSeconds: data['elapsedSeconds'] as int,
+                currentPlayerId: data['currentPlayerId'] as String,
+              ),
+            ));
           }
           break;
         default:
           break;
       }
     };
-    // Capturamos el tablero inicial tras arrancar el BLoC
-    widget.bloc.stream
-      .firstWhere((s) => s is Playing)
-      .then((s) {
-        final p = s as Playing;
-        _prevCells = List<Cell>.from(p.cells);
-      });
   }
 
   @override
@@ -77,16 +87,15 @@ class _HostGameScreenState extends State<HostGameScreen> {
         listener: (context, state) {
           if (state is Playing) {
             final newCells = state.cells;
-            if (_prevCells.isEmpty) {
-              _prevCells = List.from(newCells);
-              return;
-            }
             final diffs = <Map<String, dynamic>>[];
+
+            // 3) Comparamos siempre contra _prevCells, que ya está inicializada.
             for (int i = 0; i < newCells.length; i++) {
               if (newCells[i] != _prevCells[i]) {
                 diffs.add(newCells[i].toJson());
               }
             }
+
             if (diffs.isNotEmpty) {
               widget.hostManager.send(
                 NetEvent(
@@ -99,7 +108,7 @@ class _HostGameScreenState extends State<HostGameScreen> {
                   },
                 ).toJson(),
               );
-              _prevCells = List.from(newCells);
+              _prevCells = List<Cell>.from(newCells);
             }
           }
         },
