@@ -14,178 +14,53 @@ class MultiplayerGameScreen extends StatefulWidget {
   final bool isHost;
 
   const MultiplayerGameScreen({
-    super.key,
+    Key? key,
     required this.proxy,
     required this.isHost,
-  });
+  }) : super(key: key);
 
   @override
-  _MultiplayerGameScreenState createState() => _MultiplayerGameScreenState();
+  State<MultiplayerGameScreen> createState() => _MultiplayerGameScreenState();
 }
 
 class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
   late final String _myId;
-  late StreamSubscription<Event<dynamic>> _sub;
-
-  // Lobby
-  bool _clientReady = false;
-  bool _gameStarting = false;
+  late final StreamSubscription<Event<dynamic>> _sub;
+  late final GameBloc _bloc;
   bool _inGame = false;
-
-  // Juego
-  late GameConfiguration _config;
-  late GameBloc _bloc;
-  List<Cell>? _previousCells;
-
-  static const _defaultWidth = 8;
-  static const _defaultHeight = 8;
-  static const _defaultBombs = 10;
+  late final GameConfiguration _config;
 
   @override
   void initState() {
     super.initState();
     _myId = widget.isHost ? 'host' : 'client';
-    _config = GameConfiguration(
-      width: _defaultWidth,
-      height: _defaultHeight,
-      numberOfBombs: _defaultBombs,
+
+    // 1) Escuchar solo gameStart y cellUpdate
+    _sub = widget.proxy.events.listen(
+      _onEvent,
+      onError: (e) => debugPrint('⚠️ [$_myId] ProxyClient error: $e'),
+      onDone: () => debugPrint('🔒 [$_myId] ProxyClient closed'),
     );
-
-    // 1) Escuchar todo lo que venga del relé
-    _sub = widget.proxy.events.listen(_handleEvent);
   }
 
-  void _handleEvent(Event<dynamic> event) {
-    switch (event.type) {
-      // 2) Host recibe confirmación de proxy (cliente listo)
-      case EventType.clientReady:
-        if (widget.isHost) {
-          setState(() => _clientReady = true);
-        }
-        break;
-
-      // 3) Ambos reciben gameStart: host lo envía, cliente lo aplica
-      case EventType.gameStart:
-        if (!_inGame) {
-          final data = event.data as GameStartData;
-          _config = GameConfiguration(
-            width: data.width,
-            height: data.height,
-            numberOfBombs: data.numberOfBombs,
-          );
-          _startBloc(seed: data.seed);
-        }
-        break;
-
-      // 4) Host procesa taps/flags del cliente
-      case EventType.open:
-      case EventType.flagTile:
-        if (widget.isHost && _inGame) {
-          final idx = (event.data as dynamic).index as int;
-          final ev =
-              event.type == EventType.open ? TapCell(idx) : ToggleFlag(idx);
-          _bloc.add(ev);
-        }
-        break;
-
-      // 5) Cliente aplica diffs enviados por el host
-      case EventType.cellUpdate:
-        if (!widget.isHost && _inGame) {
-          final data = event.data as CellUpdateData;
-          _bloc.add(ApplyCellUpdates(data.updates, data.nextPlayerId));
-        }
-        break;
-
-      default:
-        // register, errores, etc.
-        break;
-    }
-  }
-
-  /// Inicializa el BLoC y engancha el envío de cellUpdate (solo host).
-  void _startBloc({required int seed}) {
-    _bloc = GameBloc(_config, enableTimer: !widget.isHost)
-      ..add(InitializeGame(seed: seed));
-
-    if (widget.isHost) {
-      _bloc.onStateUpdated = _sendCellUpdates;
-      // marcamos que ya arrancó el juego
-      setState(() {
-        _inGame = true;
-        _gameStarting = false;
-      });
-    } else {
-      // cliente también entra en juego
+  void _onEvent(Event<dynamic> evt) {
+    debugPrint('🔄 [$_myId] Received → ${evt.type}');
+    if (evt.type == EventType.gameStart) {
+      final d = evt.data as GameStartData;
+      _config = GameConfiguration(
+        width: d.width,
+        height: d.height,
+        numberOfBombs: d.numberOfBombs,
+      );
+      _bloc = GameBloc(_config, enableTimer: false)
+        ..add(InitializeGame(seed: d.seed));
       setState(() => _inGame = true);
+    } else if (evt.type == EventType.cellUpdate && _inGame) {
+      final d = evt.data as CellUpdateData;
+      debugPrint(
+          '📥 [$_myId] cellUpdate diffs=${d.updates.length}, next=${d.nextPlayerId}');
+      _bloc.add(ApplyCellUpdates(d.updates, d.nextPlayerId));
     }
-  }
-
-  /// Solo host: calcula diffs y envía cellUpdate con nextPlayerId
-  void _sendCellUpdates(Playing state) {
-    final diffs = <CellJson>[];
-    final cells = state.cells;
-
-    if (_previousCells == null) {
-      for (var c in cells) {
-        final opened = c is CellOpened;
-        final flagged = c is CellClosed && c.flagged;
-        if (opened || flagged) {
-          diffs.add(CellJson(
-            index: c.index,
-            content: c.content.index,
-            flagged: flagged,
-            opened: opened,
-          ));
-        }
-      }
-    } else {
-      for (var i = 0; i < cells.length; i++) {
-        final oldC = _previousCells![i];
-        final newC = cells[i];
-        final opened = newC is CellOpened;
-        final flagged = newC is CellClosed && newC.flagged;
-        final oldOpened = oldC is CellOpened;
-        final oldFlagged = oldC is CellClosed && (oldC as CellClosed).flagged;
-        if (opened != oldOpened || flagged != oldFlagged) {
-          diffs.add(CellJson(
-            index: newC.index,
-            content: newC.content.index,
-            flagged: flagged,
-            opened: opened,
-          ));
-        }
-      }
-    }
-
-    _previousCells = List<Cell>.from(cells);
-    final evt = Event<CellUpdateData>(
-      type: EventType.cellUpdate,
-      data: CellUpdateData(diffs, state.currentPlayerId),
-    );
-    widget.proxy.send(evt);
-    debugPrint('📤 Host envía cellUpdate: ${evt.toJsonString().trim()}');
-  }
-
-  /// Botón “Iniciar partida” en el lobby del host
-  void _onStartPressed() {
-    setState(() => _gameStarting = true);
-
-    final seed = DateTime.now().millisecondsSinceEpoch;
-    // 1) Arrancar el BLoC local
-    _startBloc(seed: seed);
-
-    // 2) Notificar al cliente
-    widget.proxy.send(
-      Event<GameStartData>(
-        type: EventType.gameStart,
-        data: GameStartData(
-          width: _config.width,
-          height: _config.height,
-          numberOfBombs: _config.numberOfBombs,
-          seed: seed,
-        ),
-      ),
-    );
   }
 
   @override
@@ -197,56 +72,15 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ------ LOBBY ------
     if (!_inGame) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: Colors.black,
-        appBar: AppBar(
-          backgroundColor: Colors.black87,
-          title: Text(
-            widget.isHost ? 'Host Lobby' : 'Cliente Lobby',
-            style: const TextStyle(color: Colors.greenAccent),
-          ),
-          centerTitle: true,
-        ),
         body: Center(
-          child: widget.isHost
-              ? Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _clientReady
-                          ? 'Cliente conectado'
-                          : 'Esperando cliente…',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    ElevatedButton(
-                      onPressed: _clientReady && !_gameStarting
-                          ? _onStartPressed
-                          : null,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.greenAccent,
-                        foregroundColor: Colors.black,
-                      ),
-                      child: Text(_gameStarting
-                          ? 'Iniciando…'
-                          : 'Iniciar partida'),
-                    ),
-                  ],
-                )
-              : const Text(
-                  'Esperando al host para iniciar',
-                  style: TextStyle(color: Colors.white, fontSize: 18),
-                ),
+          child: CircularProgressIndicator(color: Colors.greenAccent),
         ),
       );
     }
 
-    // ------ PARTIDA EN CURSO ------
     return BlocProvider.value(
       value: _bloc,
       child: Scaffold(
@@ -260,7 +94,7 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
           centerTitle: true,
         ),
         body: BlocBuilder<GameBloc, GameState>(
-          builder: (ctx, state) {
+          builder: (_, state) {
             if (state is! Playing) {
               return const Center(
                 child: CircularProgressIndicator(
@@ -269,8 +103,11 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
             }
 
             final locked = state.currentPlayerId != _myId;
-            final width = state.gameConfiguration!.width;
-            final height = state.gameConfiguration!.height;
+            debugPrint(
+                '🔒 [$_myId] locked=$locked, turn=${state.currentPlayerId}');
+
+            final w = _config.width;
+            final h = _config.height;
 
             return Column(
               children: [
@@ -280,14 +117,11 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
                     mainAxisAlignment:
                         MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        '🚩 ${state.flagsRemaining}',
-                        style:
-                            const TextStyle(color: Colors.white),
-                      ),
+                      Text('🚩 ${state.flagsRemaining}',
+                          style: const TextStyle(color: Colors.white)),
                       Text(
                         locked
-                            ? '⚪ Turno oponente'
+                            ? '⏳ Turno ${state.currentPlayerId}'
                             : '⬢ Tu turno',
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
@@ -295,10 +129,8 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
                         ),
                       ),
                       Text(
-                        '⏱ ${state.elapsedSeconds ~/ 60}'
-                        ':${(state.elapsedSeconds % 60).toString().padLeft(2, '0')}',
-                        style:
-                            const TextStyle(color: Colors.white),
+                        '⏱ ${_formatTime(state.elapsedSeconds)}',
+                        style: const TextStyle(color: Colors.white),
                       ),
                     ],
                   ),
@@ -309,50 +141,55 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
                     child: Opacity(
                       opacity: locked ? 0.6 : 1.0,
                       child: LayoutBuilder(
-                        builder: (c, cons) {
-                          final gridSize = cons.maxWidth;
+                        builder: (_, cons) {
+                          final size = cons.maxWidth;
                           return Center(
                             child: SizedBox(
-                              width: gridSize,
-                              height: gridSize,
+                              width: size,
+                              height: size,
                               child: GridView.builder(
-                                padding:
-                                    const EdgeInsets.all(2),
+                                padding: const EdgeInsets.all(2),
                                 physics:
                                     const NeverScrollableScrollPhysics(),
                                 gridDelegate:
                                     SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: width,
+                                  crossAxisCount: w,
                                   crossAxisSpacing: 1,
                                   mainAxisSpacing: 1,
-                                  childAspectRatio:
-                                      width / height,
+                                  childAspectRatio: w / h,
                                 ),
                                 itemCount: state.cells.length,
-                                itemBuilder: (c, i) {
+                                itemBuilder: (_, i) {
                                   return GestureDetector(
                                     onTap: () {
+                                      debugPrint(
+                                          '🤚 [$_myId] tap idx=$i');
                                       if (!locked) {
-                                        _bloc.add(TapCell(i));
                                         widget.proxy.send(
                                           Event<RevealTileData>(
                                             type: EventType.open,
-                                            data: RevealTileData(
-                                                index: i),
+                                            data:
+                                                RevealTileData(index: i),
                                           ),
                                         );
+                                        debugPrint(
+                                            '📤 [$_myId] send open idx=$i');
                                       }
                                     },
                                     onLongPress: () {
+                                      debugPrint(
+                                          '🤏 [$_myId] long idx=$i');
                                       if (!locked) {
-                                        _bloc.add(ToggleFlag(i));
                                         widget.proxy.send(
                                           Event<FlagTileData>(
-                                            type: EventType.flagTile,
-                                            data: FlagTileData(
-                                                index: i),
+                                            type:
+                                                EventType.flagTile,
+                                            data:
+                                                FlagTileData(index: i),
                                           ),
                                         );
+                                        debugPrint(
+                                            '📤 [$_myId] send flag idx=$i');
                                       }
                                     },
                                     child: CellView(
@@ -373,5 +210,13 @@ class _MultiplayerGameScreenState extends State<MultiplayerGameScreen> {
         ),
       ),
     );
+  }
+
+  String _formatTime(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    final mm = m.toString().padLeft(2, "0");
+    final ss = s.toString().padLeft(2, "0");
+    return '$mm:$ss';
   }
 }

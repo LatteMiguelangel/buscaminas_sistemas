@@ -8,7 +8,7 @@ class MultiplayerMenuScreen extends StatelessWidget {
   const MultiplayerMenuScreen({super.key});
 
   // Ajusta esto a la IP/puerto de tu servidor-relé
-  static const _serverIp = '192.168.29.8';
+  static const _serverIp = '192.168.1.117';
   static const _serverPort = 4040;
 
   Future<void> _startGame(BuildContext context, bool isHost) async {

@@ -1,0 +1,7 @@
+name: buscando_minas_server
+description: Servidor para buscaminas multijugador
+environment:
+  sdk: ">=2.17.0 <3.0.0"
+dependencies:
+  buscando_minas:
+    path: ../    # Apunta al paquete principal
