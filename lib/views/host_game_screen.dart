@@ -60,6 +60,13 @@ class _HostGameScreenState extends State<HostGameScreen> {
           break;
       }
     };
+    // Capturamos el tablero inicial tras arrancar el BLoC
+    widget.bloc.stream
+      .firstWhere((s) => s is Playing)
+      .then((s) {
+        final p = s as Playing;
+        _prevCells = List<Cell>.from(p.cells);
+      });
   }
 
   @override

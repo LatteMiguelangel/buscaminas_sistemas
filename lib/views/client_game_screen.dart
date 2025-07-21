@@ -39,6 +39,16 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
           final seed = d['seed'] as int;
           _bloc = GameBloc(_config)..add(InitializeGame(seed: seed));
           setState(() => _initialized = true);
+          _bloc = GameBloc(_config);
+          // Inicializamos el BLoC y capturamos el estado Playing inicial
+          _bloc.stream
+            .firstWhere((s) => s is Playing)
+            .then((s) {
+              final p = s as Playing;
+              _prevCells = List<Cell>.from(p.cells);
+              setState(() => _initialized = true);
+            });
+          _bloc.add(InitializeGame(seed: seed));
           break;
 
         case NetEventType.stateUpdate:
