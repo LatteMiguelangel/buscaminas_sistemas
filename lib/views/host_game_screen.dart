@@ -45,10 +45,16 @@ class _HostGameScreenState extends State<HostGameScreen> {
     widget.hostManager.onEvent = (evt) {
       switch (evt.type) {
         case NetEventType.revealTile:
-          widget.bloc.add(TapCell(evt.data['index'] as int));
+          widget.bloc.add(TapCell(
+            evt.data['index'] as int,
+            evt.data['playerId'] as String,
+          ));
           break;
         case NetEventType.flagTile:
-          widget.bloc.add(ToggleFlag(evt.data['index'] as int));
+          widget.bloc.add(ToggleFlag(
+            index: evt.data['index'] as int,
+            playerId: evt.data['playerId'] as String,
+          ));
           break;
         case NetEventType.stateUpdate:
           final data = evt.data;

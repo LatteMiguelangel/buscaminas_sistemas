@@ -113,18 +113,22 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   }
 
   void _onTapCell(TapCell event, Emitter<GameState> emit) {
+    // 1) Validación de turno
+    if (event.playerId != _currentPlayerId) return;
+
     final currentState = state;
     if (currentState is! Playing) return;
 
     final tappedIndex = event.index;
     final oldCells = currentState.cells;
-
     final tappedCell = oldCells[tappedIndex];
     if (tappedCell is! CellClosed || tappedCell.flagged) return;
 
     final updatedCells = List<Cell>.from(oldCells);
 
+    // Bombazo?
     if (tappedCell.content == CellContent.bomb) {
+      // Revelar todas las bombas
       for (int i = 0; i < updatedCells.length; i++) {
         final cell = updatedCells[i];
         if (cell is CellClosed && cell.content == CellContent.bomb) {
@@ -132,10 +136,13 @@ class GameBloc extends Bloc<GameEvent, GameState> {
         }
       }
       _timer?.cancel();
-      emit(GameOver(configuration: configuration, cells: updatedCells, won: false));
+      emit(
+        GameOver(configuration: configuration, cells: updatedCells, won: false),
+      );
       return;
     }
 
+    // Revelado normal
     _revealCellsRecursively(
       updatedCells,
       tappedIndex,
@@ -143,50 +150,49 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       configuration.height,
     );
 
-    // Verificar si el juego no ha terminado antes de cambiar turno
-    if (state is Playing) {
-      _togglePlayer();
-      emit(
-        Playing(
-          configuration: configuration,
-          cells: updatedCells,
-          flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-          elapsedSeconds: _elapsedSeconds,
-          currentPlayerId: _currentPlayerId,
-        ),
-      );
-    }
+    // 2) Cambiamos turno
+    _togglePlayer();
+
+    emit(
+      Playing(
+        configuration: configuration,
+        cells: updatedCells,
+        flagsRemaining: configuration.numberOfBombs - flagsPlaced,
+        elapsedSeconds: _elapsedSeconds,
+        currentPlayerId: _currentPlayerId,
+      ),
+    );
   }
 
   void _onToggleFlag(ToggleFlag event, Emitter<GameState> emit) {
+    // 1) Validación de turno (igual que tap)
+    if (event.playerId != _currentPlayerId) return;
+
     final currentState = state;
     if (currentState is! Playing) return;
 
     final index = event.index;
     final cell = currentState.cells[index];
     if (cell is! CellClosed) return;
+    // No más banderas de las permitidas
     if (!cell.flagged && flagsPlaced >= configuration.numberOfBombs) return;
 
     final updatedCell = cell.copyWith(flagged: !cell.flagged);
     final updatedCells = List<Cell>.from(currentState.cells);
     updatedCells[index] = updatedCell;
-
     flagsPlaced += updatedCell.flagged ? 1 : -1;
-    if (_checkWinCondition(updatedCells)) {
-      _timer?.cancel();
-      emit(Victory(configuration));
-    } else {
-      _togglePlayer();
-      emit(
-        Playing(
-          configuration: configuration,
-          cells: updatedCells,
-          flagsRemaining: configuration.numberOfBombs - flagsPlaced,
-          elapsedSeconds: _elapsedSeconds,
-          currentPlayerId: _currentPlayerId,
-        ),
-      );
-    }
+
+    // 2) NO cambiamos de turno aquí
+    // Emitimos nuevo estado con mismo _currentPlayerId
+    emit(
+      Playing(
+        configuration: configuration,
+        cells: updatedCells,
+        flagsRemaining: configuration.numberOfBombs - flagsPlaced,
+        elapsedSeconds: _elapsedSeconds,
+        currentPlayerId: _currentPlayerId,
+      ),
+    );
   }
 
   void _revealCellsRecursively(

@@ -16,14 +16,17 @@ class InitializeGame extends GameEvent {
 
 class TapCell extends GameEvent {
   final int index;
-  const TapCell(this.index);
+  final String playerId;
+  const TapCell(this.index, this.playerId);
 
   @override
-  List<Object> get props => [index];
+  List<Object> get props => [index, playerId];
 }
 class ToggleFlag extends GameEvent {
   final int index;
-  const ToggleFlag(this.index);
+  final String playerId;
+
+  const ToggleFlag({required this.index, required this.playerId});
 }
 
 class UpdateTime extends GameEvent {}
@@ -38,4 +41,6 @@ class ReplaceState extends GameEvent {
 class SetPlayingState extends GameEvent {
   final Playing playing;
   const SetPlayingState(this.playing);
+  @override
+  List<Object> get props => [playing];
 }

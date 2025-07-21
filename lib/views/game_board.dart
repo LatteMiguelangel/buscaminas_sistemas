@@ -1,3 +1,4 @@
+// game_board.dart
 import 'package:buscando_minas/logic/network/network_event.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,13 +8,13 @@ import 'package:buscando_minas/logic/network/network_manager.dart';
 
 class GameBoard extends StatelessWidget {
   final bool isHost;
-  final String? myPlayerId;
+  final String myPlayerId;
   final NetworkClient? clientManager;
 
   const GameBoard({
     super.key,
     required this.isHost,
-    this.myPlayerId,
+    required this.myPlayerId,
     this.clientManager,
   });
 
@@ -21,16 +22,17 @@ class GameBoard extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocBuilder<GameBloc, GameState>(
       builder: (context, state) {
-        print('🔄 GameBoard rebuild con estado: ${state.runtimeType}');
         if (state is Playing) {
           final config = state.gameConfiguration!;
           final width = config.width;
           final height = config.height;
 
-          final locked = !isHost && state.currentPlayerId != myPlayerId;
+          // Bloquea la UI si no es tu turno
+          final locked = state.currentPlayerId != myPlayerId;
 
           return Column(
             children: [
+              // Contadores de banderas y tiempo
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(
@@ -43,10 +45,12 @@ class GameBoard extends StatelessWidget {
                   ],
                 ),
               ),
+              // Indicador de turno
               Text(
                 "🎮 Turno de: ${state.currentPlayerId}",
                 style: const TextStyle(color: Colors.white),
               ),
+              // Tablero
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -69,37 +73,43 @@ class GameBoard extends StatelessWidget {
                           itemBuilder: (context, index) {
                             return GestureDetector(
                               onTap: () {
-                                if (!locked) {
-                                  if (isHost) {
-                                    context.read<GameBloc>().add(
-                                          TapCell(index),
-                                        );
-                                  } else if (clientManager != null) {
-                                    print('📨 Cliente envía revealTile: $index');
-                                    clientManager!.send(
-                                      NetEvent(
-                                        type: NetEventType.revealTile,
-                                        data: {'index': index},
-                                      ).toJson(),
-                                    );
-                                  }
+                                if (locked) return;
+                                if (isHost) {
+                                  // Host ejecuta localmente el TapCell con su playerId
+                                  context
+                                      .read<GameBloc>()
+                                      .add(TapCell(index, myPlayerId));
+                                } else if (clientManager != null) {
+                                  // Cliente envía petición de reveal al host
+                                  clientManager!.send(
+                                    NetEvent(
+                                      type: NetEventType.revealTile,
+                                      data: {
+                                        'index': index,
+                                        'playerId': myPlayerId,
+                                      },
+                                    ).toJson(),
+                                  );
                                 }
                               },
                               onLongPress: () {
-                                if (!locked) {
-                                  if (isHost) {
-                                    context.read<GameBloc>().add(
-                                          ToggleFlag(index),
-                                        );
-                                  } else if (clientManager != null) {
-                                    print('📨 Cliente envía flagTile: $index');
-                                    clientManager!.send(
-                                      NetEvent(
-                                        type: NetEventType.flagTile,
-                                        data: {'index': index},
-                                      ).toJson(),
-                                    );
-                                  }
+                                if (locked) return;
+                                if (isHost) {
+                                  // Host ejecuta ToggleFlag localmente
+                                  context
+                                      .read<GameBloc>()
+                                      .add(ToggleFlag(index: index, playerId: myPlayerId));
+                                } else if (clientManager != null) {
+                                  // Cliente envía petición de flag al host
+                                  clientManager!.send(
+                                    NetEvent(
+                                      type: NetEventType.flagTile,
+                                      data: {
+                                        'index': index,
+                                        'playerId': myPlayerId,
+                                      },
+                                    ).toJson(),
+                                  );
                                 }
                               },
                               child: CellView(
@@ -117,9 +127,19 @@ class GameBoard extends StatelessWidget {
             ],
           );
         } else if (state is GameOver) {
-          return const Center(child: Text('💥 Has perdido', style: TextStyle(color: Colors.white)));
+          return const Center(
+            child: Text(
+              '💥 Has perdido',
+              style: TextStyle(color: Colors.white, fontSize: 24),
+            ),
+          );
         } else if (state is Victory) {
-          return const Center(child: Text('🎉 Has ganado', style: TextStyle(color: Colors.white)));
+          return const Center(
+            child: Text(
+              '🎉 Has ganado',
+              style: TextStyle(color: Colors.white, fontSize: 24),
+            ),
+          );
         } else {
           return const Center(
             child: CircularProgressIndicator(color: Colors.greenAccent),
