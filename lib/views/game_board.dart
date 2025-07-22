@@ -22,43 +22,51 @@ class GameBoard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<GameBloc, GameState>(
-      builder: (context, state) {
-        if (state is Playing) {
-          return _buildPlaying(context, state);
-        }
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/retro_bg.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: BlocBuilder<GameBloc, GameState>(
+        builder: (context, state) {
+          if (state is Playing) {
+            return _buildPlaying(context, state);
+          }
 
-        // Fin de partida: GameOver o Victory
-        final bool won = state is Victory;
-        final List<Cell> revealCells =
-            (state is GameOver)
-                ? state.cells
-                : (state is Victory)
-                ? state.cells
-                    .map(
-                      (c) =>
-                          c is CellClosed
-                              ? CellOpened(null, index: c.index, content: c.content)
-                              : c,
-                    )
-                    .toList()
-                : [];
+          // Fin de partida: GameOver o Victory
+          final bool won = state is Victory;
+          final List<Cell> revealCells =
+              (state is GameOver)
+                  ? state.cells
+                  : (state is Victory)
+                  ? state.cells
+                      .map(
+                        (c) =>
+                            c is CellClosed
+                                ? CellOpened(null, index: c.index, content: c.content)
+                                : c,
+                      )
+                      .toList()
+                  : [];
 
-        return Stack(
-          children: [
-            _buildGrid(
-              context,
-              revealCells,
-              (state as dynamic).gameConfiguration!,
-            ),
-            Container(
-              color: Colors.black54,
-              alignment: Alignment.center,
-              child: _buildEndDialog(context, won),
-            ),
-          ],
-        );
-      },
+          return Stack(
+            children: [
+              _buildGrid(
+                context,
+                revealCells,
+                (state as dynamic).gameConfiguration!,
+              ),
+              Container(
+                color: Colors.black54,
+                alignment: Alignment.center,
+                child: _buildEndDialog(context, won),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -76,27 +84,70 @@ class GameBoard extends StatelessWidget {
             children: [
               Text(
                 "🚩 ${state.flagsRemaining}",
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(
+                  color: Colors.greenAccent,
+                  fontFamily: 'PressStart2P',
+                  fontSize: 16,
+                  shadows: [
+                    Shadow(
+                      blurRadius: 5,
+                      color: Colors.greenAccent,
+                      offset: Offset(0, 0),
+                    ),
+                  ],
+                ),
               ),
               Text(
                 "⏱ ${_formatTime(state.elapsedSeconds)}",
-                style: const TextStyle(color: Colors.white),
+                style: const TextStyle(
+                  color: Colors.greenAccent,
+                  fontFamily: 'PressStart2P',
+                  fontSize: 16,
+                  shadows: [
+                    Shadow(
+                      blurRadius: 5,
+                      color: Colors.greenAccent,
+                      offset: Offset(0, 0),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
         ),
-        Text(
-          "🎮 Turno de: ${state.currentPlayerId}",
-          style: const TextStyle(color: Colors.white),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text(
+            "🎮 Turno de: ${state.currentPlayerId}",
+            style: const TextStyle(
+              color: Colors.greenAccent,
+              fontFamily: 'PressStart2P',
+              fontSize: 12,
+              shadows: [
+                Shadow(
+                  blurRadius: 5,
+                  color: Colors.greenAccent,
+                  offset: Offset(0, 0),
+                ),
+              ],
+            ),
+          ),
         ),
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               final gridSize = constraints.maxWidth;
               return Center(
-                child: SizedBox(
+                child: Container(
                   width: gridSize,
                   height: gridSize,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: Colors.greenAccent,
+                      width: 2,
+                    ),
+                  ),
                   child: GridView.builder(
                     physics: const NeverScrollableScrollPhysics(),
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -165,34 +216,60 @@ class GameBoard extends StatelessWidget {
     GameConfiguration config,
   ) {
     final flagOwners = context.read<GameBloc>().flagOwnersMap;
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: config.width,
-        crossAxisSpacing: 1,
-        mainAxisSpacing: 1,
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          border: Border.all(
+            color: Colors.greenAccent,
+            width: 2,
+          ),
+        ),
+        child: GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: config.width,
+            crossAxisSpacing: 1,
+            mainAxisSpacing: 1,
+          ),
+          padding: const EdgeInsets.all(2),
+          itemCount: cells.length,
+          itemBuilder: (_, i) {
+            // Determinamos si la bandera de esta celda la puso el cliente
+            final owner = flagOwners[i];
+            final isClientFlag = owner == 'client';
+            return CellView(
+              key: ValueKey(cells[i]),
+              cell: cells[i],
+              isClientFlag: isClientFlag,
+            );
+          },
+        ),
       ),
-      padding: const EdgeInsets.all(2),
-      itemCount: cells.length,
-      itemBuilder: (_, i) {
-        // Determinamos si la bandera de esta celda la puso el cliente
-        final owner = flagOwners[i];
-        final isClientFlag = owner == 'client';
-        return CellView(
-          key: ValueKey(cells[i]),
-          cell: cells[i],
-          isClientFlag: isClientFlag,
-        );
-      },
     );
   }
 
   Widget _buildEndDialog(BuildContext context, bool won) {
     return AlertDialog(
       backgroundColor: Colors.black87,
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: Colors.greenAccent, width: 2),
+        borderRadius: BorderRadius.circular(0),
+      ),
       title: Text(
         won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
-        style: const TextStyle(color: Colors.white),
+        style: const TextStyle(
+          color: Colors.greenAccent,
+          fontFamily: 'PressStart2P',
+          fontSize: 18,
+          shadows: [
+            Shadow(
+              blurRadius: 10,
+              color: Colors.greenAccent,
+              offset: Offset(0, 0),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -204,7 +281,11 @@ class GameBoard extends StatelessWidget {
           },
           child: const Text(
             'Volver a jugar',
-            style: TextStyle(color: Colors.greenAccent),
+            style: TextStyle(
+              color: Colors.greenAccent,
+              fontFamily: 'PressStart2P',
+              fontSize: 12,
+            ),
           ),
         ),
       ],
