@@ -1,5 +1,5 @@
-import 'package:buscando_minas/views/host_screen.dart';
 import 'package:buscando_minas/views/join_screen.dart';
+import 'package:buscando_minas/views/multiplayer_difficulty_selection_screen.dart';
 import 'package:flutter/material.dart';
 
 class MultiplayerMenuScreen extends StatelessWidget {
@@ -12,7 +12,7 @@ class MultiplayerMenuScreen extends StatelessWidget {
       body: Container(
         decoration: const BoxDecoration(
           image: DecorationImage(
-            image: AssetImage('assets/images/retro_bg.png'), // Puedes usar una imagen de fondo pixelada
+            image: AssetImage('assets/images/retro_bg.png'),
             fit: BoxFit.cover,
           ),
         ),
@@ -58,7 +58,7 @@ class MultiplayerMenuScreen extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const HostScreen()),
+                      MaterialPageRoute(builder: (_) => const MultiplayerDifficultySelectionScreen()),
                     );
                   },
                 ),
