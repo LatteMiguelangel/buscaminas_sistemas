@@ -139,7 +139,7 @@ class GameScreen extends StatelessWidget {
                     ),
                     itemCount: state.cells.length,
                     itemBuilder: (context, index) {
-                      return CellView(cell: state.cells[index]);
+                      return CellView(cell: state.cells[index], isClientFlag: false,);
                     },
                   ),
                 ),

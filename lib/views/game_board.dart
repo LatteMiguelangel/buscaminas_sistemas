@@ -30,20 +30,27 @@ class GameBoard extends StatelessWidget {
 
         // Fin de partida: GameOver o Victory
         final bool won = state is Victory;
-        final List<Cell> revealCells = (state is GameOver)
-            ? state.cells
-            : (state is Victory)
+        final List<Cell> revealCells =
+            (state is GameOver)
                 ? state.cells
-                    .map((c) => c is CellClosed
-                        ? CellOpened(index: c.index, content: c.content)
-                        : c)
+                : (state is Victory)
+                ? state.cells
+                    .map(
+                      (c) =>
+                          c is CellClosed
+                              ? CellOpened(null, index: c.index, content: c.content)
+                              : c,
+                    )
                     .toList()
                 : [];
 
         return Stack(
           children: [
-            _buildGrid(context, revealCells,
-                (state as dynamic).gameConfiguration!),
+            _buildGrid(
+              context,
+              revealCells,
+              (state as dynamic).gameConfiguration!,
+            ),
             Container(
               color: Colors.black54,
               alignment: Alignment.center,
@@ -67,10 +74,14 @@ class GameBoard extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("🚩 ${state.flagsRemaining}",
-                  style: const TextStyle(color: Colors.white)),
-              Text("⏱ ${_formatTime(state.elapsedSeconds)}",
-                  style: const TextStyle(color: Colors.white)),
+              Text(
+                "🚩 ${state.flagsRemaining}",
+                style: const TextStyle(color: Colors.white),
+              ),
+              Text(
+                "⏱ ${_formatTime(state.elapsedSeconds)}",
+                style: const TextStyle(color: Colors.white),
+              ),
             ],
           ),
         ),
@@ -88,8 +99,7 @@ class GameBoard extends StatelessWidget {
                   height: gridSize,
                   child: GridView.builder(
                     physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate:
-                        SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: width,
                       crossAxisSpacing: 1,
                       mainAxisSpacing: 1,
@@ -98,21 +108,21 @@ class GameBoard extends StatelessWidget {
                     padding: const EdgeInsets.all(2),
                     itemCount: state.cells.length,
                     itemBuilder: (context, index) {
+                      final owner =
+                          context.read<GameBloc>().flagOwnersMap[index];
+                      final isClientFlag = owner == 'client';
                       return GestureDetector(
                         onTap: () {
                           if (locked) return;
                           if (isHost) {
-                            context
-                                .read<GameBloc>()
-                                .add(TapCell(index, myPlayerId));
+                            context.read<GameBloc>().add(
+                              TapCell(index, myPlayerId),
+                            );
                           } else {
                             clientManager!.send(
                               NetEvent(
                                 type: NetEventType.revealTile,
-                                data: {
-                                  'index': index,
-                                  'playerId': myPlayerId,
-                                },
+                                data: {'index': index, 'playerId': myPlayerId},
                               ).toJson(),
                             );
                           }
@@ -121,15 +131,13 @@ class GameBoard extends StatelessWidget {
                           if (locked) return;
                           if (isHost) {
                             context.read<GameBloc>().add(
-                                ToggleFlag(index: index, playerId: myPlayerId));
+                              ToggleFlag(index: index, playerId: myPlayerId),
+                            );
                           } else {
                             clientManager!.send(
                               NetEvent(
                                 type: NetEventType.flagTile,
-                                data: {
-                                  'index': index,
-                                  'playerId': myPlayerId,
-                                },
+                                data: {'index': index, 'playerId': myPlayerId},
                               ).toJson(),
                             );
                           }
@@ -137,6 +145,7 @@ class GameBoard extends StatelessWidget {
                         child: CellView(
                           key: ValueKey(state.cells[index]),
                           cell: state.cells[index],
+                          isClientFlag: isClientFlag,
                         ),
                       );
                     },
@@ -151,7 +160,11 @@ class GameBoard extends StatelessWidget {
   }
 
   Widget _buildGrid(
-      BuildContext context, List<Cell> cells, GameConfiguration config) {
+    BuildContext context,
+    List<Cell> cells,
+    GameConfiguration config,
+  ) {
+    final flagOwners = context.read<GameBloc>().flagOwnersMap;
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -161,7 +174,16 @@ class GameBoard extends StatelessWidget {
       ),
       padding: const EdgeInsets.all(2),
       itemCount: cells.length,
-      itemBuilder: (_, i) => CellView(key: ValueKey(cells[i]), cell: cells[i]),
+      itemBuilder: (_, i) {
+        // Determinamos si la bandera de esta celda la puso el cliente
+        final owner = flagOwners[i];
+        final isClientFlag = owner == 'client';
+        return CellView(
+          key: ValueKey(cells[i]),
+          cell: cells[i],
+          isClientFlag: isClientFlag,
+        );
+      },
     );
   }
 

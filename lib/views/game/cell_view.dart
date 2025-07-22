@@ -5,8 +5,8 @@ import 'package:buscando_minas/assets.dart';
 
 class CellView extends StatelessWidget {
   final Cell cell;
-
-  const CellView({super.key, required this.cell});
+  final bool isClientFlag;
+  const CellView({super.key, required this.cell, required this.isClientFlag});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +22,15 @@ class CellView extends StatelessWidget {
 
   String _imageForCell(Cell cell) {
     if (cell is CellClosed) {
-      return cell.flagged ? Assets.cellFlagged : Assets.cellClosed;
+      // Si está cerrada y marcada…
+      if (cell.flagged) {
+        return isClientFlag
+            ? Assets
+                .cellFlagged2 // bandera del cliente
+            : Assets.cellFlagged; // bandera del host
+      }
+      // Cerrada y sin marcar
+      return Assets.cellClosed;
     } else {
       // Celda abierta
       if (cell.content == CellContent.bomb) {

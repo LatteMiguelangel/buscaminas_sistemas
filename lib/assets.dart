@@ -3,6 +3,7 @@ class Assets {
   static const String cellBomb = "$_path/cell_bomb.png";
   static const String cellClosed = "$_path/cell_closed.png";
   static const String cellFlagged = "$_path/cell_flagged.png";
+  static const String cellFlagged2 = "$_path/cell_flagged2.png";
   static const String cellOpened = "$_path/cell_opened.png";
   static const String cellOpened1 = "$_path/cell_opened_1.png";
   static const String cellOpened2 = "$_path/cell_opened_2.png";

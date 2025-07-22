@@ -17,11 +17,19 @@ List<Cell> generateBoard(GameConfiguration config, {int? seed}) {
   bombIndexes = bombIndexes.sublist(0, config.numberOfBombs);
 
   List<Cell> cells = List.generate(total, (i) {
-    return CellClosed(index: i, content: CellContent.zero);
+    return CellClosed(
+      null, // flagPlayerId
+      index: i,
+      content: CellContent.zero,
+    );
   });
 
   for (var i in bombIndexes) {
-    cells[i] = CellClosed(index: i, content: CellContent.bomb);
+    cells[i] = CellClosed(
+      null, // flagPlayerId
+      index: i,
+      content: CellContent.bomb,
+    );
   }
 
   for (int i = 0; i < total; i++) {
@@ -44,7 +52,12 @@ List<Cell> generateBoard(GameConfiguration config, {int? seed}) {
         }
       }
     }
-    cells[i] = CellClosed(index: i, content: CellContent.values[bombCount]);
+
+    cells[i] = CellClosed(
+      null, // flagPlayerId
+      index: i,
+      content: CellContent.values[bombCount],
+    );
   }
   return cells;
 }
@@ -58,6 +71,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   final Map<int, String> _flagOwners = {};
   final Map<String, int> _correctFlags = {'host': 0, 'client': 0};
   final Map<String, int> _cellsRevealed = {'host': 0, 'client': 0};
+  Map<int, String> get flagOwnersMap => Map.unmodifiable(_flagOwners);
   void _togglePlayer() {
     _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
     print('🔄 Cambio de turno a: $_currentPlayerId');
@@ -132,7 +146,10 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       for (int i = 0; i < updatedCells.length; i++) {
         final cell = updatedCells[i];
         if (cell is CellClosed && cell.content == CellContent.bomb) {
-          updatedCells[i] = CellOpened(index: i, content: CellContent.bomb);
+          updatedCells[i] = CellOpened(
+              null,
+              index: i, 
+              content: CellContent.bomb);
         }
       }
       _timer?.cancel();
@@ -256,7 +273,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     final current = cells[index] as CellClosed;
     if (current.flagged || current.content == CellContent.bomb) return;
 
-    cells[index] = CellOpened(index: index, content: current.content);
+    cells[index] = CellOpened(null, index: index, content: current.content);
 
     if (current.content == CellContent.zero) {
       int x = index % width;

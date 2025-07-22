@@ -54,7 +54,7 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
         return;
       }
 
-      // 2) Eventos normales
+      // 2) Procesamiento de eventos normales
       switch (evt.type) {
         case NetEventType.gameStart:
           final d = evt.data;
@@ -70,6 +70,21 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
             _prevCells = List<Cell>.from(p.cells);
             setState(() => _initialized = true);
           });
+          break;
+
+        case NetEventType.revealTile:
+          _bloc.add(
+            TapCell(evt.data['index'] as int, evt.data['playerId'] as String),
+          );
+          break;
+
+        case NetEventType.flagTile:
+          _bloc.add(
+            ToggleFlag(
+              index: evt.data['index'] as int,
+              playerId: evt.data['playerId'] as String,
+            ),
+          );
           break;
 
         case NetEventType.stateUpdate:
@@ -95,21 +110,6 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
               ),
             );
           }
-          break;
-
-        case NetEventType.revealTile:
-          _bloc.add(
-            TapCell(evt.data['index'] as int, evt.data['playerId'] as String),
-          );
-          break;
-
-        case NetEventType.flagTile:
-          _bloc.add(
-            ToggleFlag(
-              index: evt.data['index'] as int,
-              playerId: evt.data['playerId'] as String,
-            ),
-          );
           break;
 
         default:
