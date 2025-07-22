@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 
-enum CellContent { zero, one, two, three, four, five, six, seven, eight, bomb }
+enum CellContent { zero, one, two, three, four, five, six, seven, eight, bomb, empty }
 
 abstract class Cell extends Equatable {
   final CellContent content;

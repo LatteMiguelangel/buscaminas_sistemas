@@ -9,64 +9,90 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'BUSCANDO MINAS',
-                style: TextStyle(
-                  fontFamily: 'PressStart2P',
-                  fontSize: 20,
-                  color: Colors.greenAccent,
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/images/retro_bg.png'),
+            fit: BoxFit.cover,
+          ),
+        ),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              // ignore: deprecated_member_use
+              color: Colors.black.withOpacity(0.8),
+              border: Border.all(color: Colors.greenAccent, width: 2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'BUSCANDO MINAS',
+                  style: TextStyle(
+                    fontFamily: 'PressStart2P',
+                    fontSize: 24,
+                    color: Colors.greenAccent,
+                    letterSpacing: 2,
+                    shadows: [
+                      Shadow(
+                        blurRadius: 10,
+                        color: Colors.greenAccent,
+                        offset: Offset(0, 0),
+                      ),
+                    ],
+                  ),
                 ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              _menuButton(context, '🎮 JUGAR', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const DifficultySelectionScreen(),
-                  ),
-                );
-              }),
-              const SizedBox(height: 20),
-              //multiplayer button
-              _menuButton(context, '👥 MULTIPLAYER', () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const MultiplayerMenuScreen(),
-                  ),
-                );
-              }),
-              const SizedBox(height: 20),
-              _menuButton(context, '❌ SALIR', () {
-              }),
-            ],
+                const SizedBox(height: 40),
+                _buildMenuButton(context, '🎮 JUGAR', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DifficultySelectionScreen(),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 20),
+                _buildMenuButton(context, '👥 MULTIJUGADOR', () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const MultiplayerMenuScreen(),
+                    ),
+                  );
+                }),
+                const SizedBox(height: 20),
+                _buildMenuButton(context, '❌ SALIR', () {
+                  // Implementar salida
+                }),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _menuButton(BuildContext context, String label, VoidCallback onPressed) {
+  Widget _buildMenuButton(BuildContext context, String label, VoidCallback onPressed) {
     return SizedBox(
-      width: double.infinity,
+      width: 280,
       child: ElevatedButton(
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          backgroundColor: Colors.black,
+          backgroundColor: Colors.transparent,
           foregroundColor: Colors.greenAccent,
+          padding: const EdgeInsets.symmetric(vertical: 18),
           side: const BorderSide(color: Colors.greenAccent, width: 2),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(0),
+          ),
           elevation: 8,
+          shadowColor: Colors.greenAccent.withOpacity(0.5),
           textStyle: const TextStyle(
             fontFamily: 'PressStart2P',
-            fontSize: 12,
+            fontSize: 14,
+            letterSpacing: 1.2,
           ),
         ),
         child: Text(label),
