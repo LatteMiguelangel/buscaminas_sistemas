@@ -257,7 +257,7 @@ class GameBoard extends StatelessWidget {
         borderRadius: BorderRadius.circular(0),
       ),
       title: Text(
-        won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
+        won ? '💥 Has perdido' : '🎉Ganaste',
         style: const TextStyle(
           color: Colors.greenAccent,
           fontFamily: 'PressStart2P',
