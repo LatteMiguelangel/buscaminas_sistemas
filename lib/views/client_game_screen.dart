@@ -1,3 +1,4 @@
+import 'package:buscando_minas/views/game/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:buscando_minas/logic/bloc/game_bloc.dart';
@@ -23,11 +24,24 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
   // Para calcular diffs locales tras cada jugada
   List<Cell> _prevCells = [];
 
+  // Para procesar un solo endGame
+  NetEvent? _lastEndEvent;
+
   @override
   void initState() {
     super.initState();
 
     widget.clientManager.onEvent = (NetEvent evt) {
+      // 1) Si viene endGame del host
+      if (evt.type == NetEventType.endGame && _lastEndEvent == null) {
+        _lastEndEvent = evt;
+        final winner = evt.data['winnerId'] as String;
+        final clientWon = winner == 'client';
+        _showEndDialog(clientWon);
+        return;
+      }
+
+      // 2) Eventos normales
       switch (evt.type) {
         case NetEventType.gameStart:
           final d = evt.data;
@@ -38,40 +52,49 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
           );
           final seed = d['seed'] as int;
           _bloc = GameBloc(_config)..add(InitializeGame(seed: seed));
-          setState(() => _initialized = true);
-          _bloc = GameBloc(_config);
-          // Inicializamos el BLoC y capturamos el estado Playing inicial
-          _bloc.stream
-            .firstWhere((s) => s is Playing)
-            .then((s) {
-              final p = s as Playing;
-              _prevCells = List<Cell>.from(p.cells);
-              setState(() => _initialized = true);
-            });
-          _bloc.add(InitializeGame(seed: seed));
+          // Capturamos el primer estado Playing
+          _bloc.stream.firstWhere((s) => s is Playing).then((s) {
+            final p = s as Playing;
+            _prevCells = List<Cell>.from(p.cells);
+            setState(() => _initialized = true);
+          });
           break;
 
         case NetEventType.stateUpdate:
-          // El host nos envía un diff: sólo celdas cambiadas
           final data = evt.data;
-          final cellsJson = data['cells'] as List<dynamic>;
           final currentState = _bloc.state;
           if (currentState is Playing) {
-            final updatedCells = List<Cell>.from(currentState.cells);
-            for (var cj in cellsJson) {
+            final updated = List<Cell>.from(currentState.cells);
+            for (var cj in data['cells'] as List<dynamic>) {
               final cell = CellSerialization.fromJson(
-                  Map<String, dynamic>.from(cj as Map));
-              updatedCells[cell.index] = cell;
+                Map<String, dynamic>.from(cj as Map),
+              );
+              updated[cell.index] = cell;
             }
-            final newPlaying = Playing(
-              configuration: currentState.gameConfiguration,
-              cells: updatedCells,
-              flagsRemaining: data['flagsRemaining'] as int,
-              elapsedSeconds: data['elapsedSeconds'] as int,
-              currentPlayerId: data['currentPlayerId'] as String,
-            );
-            _bloc.add(SetPlayingState(newPlaying));
+            _bloc.add(SetPlayingState(
+              Playing(
+                configuration: currentState.gameConfiguration,
+                cells: updated,
+                flagsRemaining: data['flagsRemaining'] as int,
+                elapsedSeconds: data['elapsedSeconds'] as int,
+                currentPlayerId: data['currentPlayerId'] as String,
+              ),
+            ));
           }
+          break;
+
+        case NetEventType.revealTile:
+          _bloc.add(TapCell(
+            evt.data['index'] as int,
+            evt.data['playerId'] as String,
+          ));
+          break;
+
+        case NetEventType.flagTile:
+          _bloc.add(ToggleFlag(
+            index: evt.data['index'] as int,
+            playerId: evt.data['playerId'] as String,
+          ));
           break;
 
         default:
@@ -95,8 +118,20 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
       value: _bloc,
       child: BlocListener<GameBloc, GameState>(
         listener: (context, state) {
+          // 3) Si el cliente termina localmente, avisamos al host
+          if ((state is GameOver || state is Victory) && _lastEndEvent == null) {
+            final clientWon = state is Victory;
+            _lastEndEvent = NetEvent(
+              type: NetEventType.endGame,
+              data: {'winnerId': clientWon ? 'client' : 'host'},
+            );
+            widget.clientManager.send(_lastEndEvent!.toJson());
+            _showEndDialog(clientWon);
+            return;
+          }
+
+          // 4) Difusión de diffs tras jugada propia
           if (state is Playing) {
-            // Enviar sólo diffs tras nuestra jugada
             if (_prevCells.isEmpty) {
               _prevCells = List.from(state.cells);
               return;
@@ -135,6 +170,34 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
             clientManager: widget.clientManager,
           ),
         ),
+      ),
+    );
+  }
+
+  void _showEndDialog(bool won) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.black87,
+        title: Text(
+          won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (_) => HomeScreen()),
+              );
+            },
+            child: const Text(
+              'Volver a jugar',
+              style: TextStyle(color: Colors.greenAccent),
+            ),
+          ),
+        ],
       ),
     );
   }
