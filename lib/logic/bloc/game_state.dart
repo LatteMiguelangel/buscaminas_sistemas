@@ -24,17 +24,21 @@ class Playing extends GameState {
 
   @override
   List<Object?> get props => [
-        gameConfiguration,
-        cells,
-        flagsRemaining,
-        elapsedSeconds,
-        currentPlayerId,
-      ];
+    gameConfiguration,
+    cells,
+    flagsRemaining,
+    elapsedSeconds,
+    currentPlayerId,
+  ];
 
-  factory Playing.fromJson(Map<String, dynamic> json, GameConfiguration config) {
-    final cellList = (json['cells'] as List)
-        .map((e) => CellSerialization.fromJson(e as Map<String, dynamic>))
-        .toList();
+  factory Playing.fromJson(
+    Map<String, dynamic> json,
+    GameConfiguration config,
+  ) {
+    final cellList =
+        (json['cells'] as List)
+            .map((e) => CellSerialization.fromJson(e as Map<String, dynamic>))
+            .toList();
     return Playing(
       configuration: config,
       cells: cellList,
@@ -86,4 +90,24 @@ class Victory extends GameState {
 
   @override
   List<Object?> get props => super.props..add(cells);
+}
+
+class GameResult extends GameState {
+  final String winnerId;
+  final Map<String, int> cellsRevealed;
+  final Map<String, int> correctFlags;
+  const GameResult({
+    required GameConfiguration? configuration,
+    required this.winnerId,
+    required this.cellsRevealed,
+    required this.correctFlags,
+  }) : super(configuration);
+
+  @override
+  List<Object?> get props => [
+    gameConfiguration,
+    winnerId,
+    cellsRevealed,
+    correctFlags,
+  ];
 }

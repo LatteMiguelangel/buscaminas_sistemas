@@ -55,7 +55,9 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   Timer? _timer;
   int _elapsedSeconds = 0;
   String _currentPlayerId = 'host';
-  final Map<int, String> _flagOwners = {}; // índice → jugador dueño
+  final Map<int, String> _flagOwners = {};
+  final Map<String, int> _correctFlags = {'host': 0, 'client': 0};
+  final Map<String, int> _cellsRevealed = {'host': 0, 'client': 0};
   void _togglePlayer() {
     _currentPlayerId = _currentPlayerId == 'host' ? 'client' : 'host';
     print('🔄 Cambio de turno a: $_currentPlayerId');
@@ -126,9 +128,7 @@ class GameBloc extends Bloc<GameEvent, GameState> {
 
     final updatedCells = List<Cell>.from(oldCells);
 
-    // Bombazo?
     if (tappedCell.content == CellContent.bomb) {
-      // Revelar todas las bombas
       for (int i = 0; i < updatedCells.length; i++) {
         final cell = updatedCells[i];
         if (cell is CellClosed && cell.content == CellContent.bomb) {
@@ -142,16 +142,20 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       return;
     }
 
-    // Revelado normal
+    final before = updatedCells.whereType<CellOpened>().length;
     _revealCellsRecursively(
       updatedCells,
       tappedIndex,
       configuration.width,
       configuration.height,
     );
+    final after = updatedCells.whereType<CellOpened>().length;
 
-    // 2) Cambiamos turno
-    _togglePlayer();
+    //  Actualizamos el contador de forma segura:
+    final prevCount = _cellsRevealed[event.playerId] ?? 0;
+    _cellsRevealed[event.playerId] = prevCount + (after - before);
+
+    _togglePlayer(); //change
 
     emit(
       Playing(
@@ -165,7 +169,6 @@ class GameBloc extends Bloc<GameEvent, GameState> {
   }
 
   void _onToggleFlag(ToggleFlag event, Emitter<GameState> emit) {
-    // 1) Validación de turno (igual que tap)
     if (event.playerId != _currentPlayerId) return;
 
     final currentState = state;
@@ -177,20 +180,16 @@ class GameBloc extends Bloc<GameEvent, GameState> {
 
     final wasFlagged = cell.flagged;
 
-    // 2) Si ya estaba marcada, solo el dueño puede quitarla
     if (wasFlagged) {
       if (_flagOwners[index] != event.playerId) {
-        return; // otro jugador no puede desmarcar
+        return;
       }
-    }
-    // 3) Si no estaba marcada, validar límite de banderas
-    else {
+    } else {
       if (flagsPlaced >= configuration.numberOfBombs) {
-        return; // no hay más banderas disponibles
+        return;
       }
     }
 
-    // 4) Toggle y actualizar flagsPlaced y dueños
     final newFlagged = !wasFlagged;
     if (newFlagged) {
       flagsPlaced++;
@@ -200,26 +199,40 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       _flagOwners.remove(index);
     }
 
-    // 5) Construir nuevo estado de celdas
+    // Si acaba de colocar (newFlagged==true) sobre bomba, sumamos correcto
+    if (newFlagged && (cell.content == CellContent.bomb)) {
+      _correctFlags[event.playerId] = _correctFlags[event.playerId]! + 1;
+    }
+    // Si acaba de quitar bandera de bomba, restamos
+    if (!newFlagged && (cell.content == CellContent.bomb)) {
+      _correctFlags[event.playerId] = _correctFlags[event.playerId]! - 1;
+    }
+
     final updatedCells = List<Cell>.from(currentState.cells);
     updatedCells[index] = (cell).copyWith(flagged: newFlagged);
 
-    // 5.5) Comprobar victoria si acabamos de colocar la última bandera
-    if (flagsPlaced == configuration.numberOfBombs){
-      final bombIndexes = updatedCells
-        .whereType<CellClosed>()
-        .where((c) => c.content == CellContent.bomb)
-        .map((c) => c.index)
-        .toSet();
-      final flaggedIndexes = _flagOwners.keys.toSet();
-      if (flaggedIndexes.length == bombIndexes.length && flaggedIndexes.difference(bombIndexes).isEmpty) {
-        _timer?.cancel();
-        emit(Victory(configuration: configuration, cells: updatedCells));
-        return;
-      }
+    if (flagsPlaced == configuration.numberOfBombs) {
+      // 1) Desempate por banderas correctas
+      final hostFlags = _correctFlags['host']!;
+      final clientFlags = _correctFlags['client']!;
+      String winner =
+          hostFlags != clientFlags
+              ? (hostFlags > clientFlags ? 'host' : 'client')
+              : // 2) desempate por celdas reveladas
+              (_cellsRevealed['host']! > _cellsRevealed['client']!
+                  ? 'host'
+                  : 'client');
+      _timer?.cancel();
+      emit(
+        GameResult(
+          configuration: configuration,
+          winnerId: winner,
+          cellsRevealed: Map.from(_cellsRevealed),
+          correctFlags: Map.from(_correctFlags),
+        ),
+      );
+      return; // salimos, no llegamos al emit de Playing
     }
-
-    // 6) Emitir sin cambiar turno
     emit(
       Playing(
         configuration: configuration,
