@@ -95,7 +95,7 @@ class _HostScreenState extends State<HostScreen> {
                           final config = GameConfiguration(
                             width: generateCustomConfiguration(10).width,
                             height: generateCustomConfiguration(10).height,
-                            numberOfBombs: 10,
+                            numberOfBombs: 2,
                           );
                           final seed = DateTime.now().millisecondsSinceEpoch;
                           final event = NetEvent(

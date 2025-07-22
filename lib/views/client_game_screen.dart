@@ -32,12 +32,25 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
     super.initState();
 
     widget.clientManager.onEvent = (NetEvent evt) {
-      // 1) Si viene endGame del host
+      // 1) Si viene endGame del host, mostramos diálogo de estadísticas
       if (evt.type == NetEventType.endGame && _lastEndEvent == null) {
         _lastEndEvent = evt;
         final winner = evt.data['winnerId'] as String;
-        final clientWon = winner == 'client';
-        _showEndDialog(clientWon);
+        final clientWon = winner == _myPlayerId;
+
+        // Estadísticas desde el BLoC
+        final cellsRevealed = _bloc.cellsRevealedMap[_myPlayerId]!;
+        final opponentRevealed = _bloc.cellsRevealedMap['host']!;
+        final correctFlags = _bloc.correctFlagsMap[_myPlayerId]!;
+        final opponentFlags = _bloc.correctFlagsMap['host']!;
+
+        _showStatsDialog(
+          won: clientWon,
+          cellsRevealed: cellsRevealed,
+          opponentRevealed: opponentRevealed,
+          correctFlags: correctFlags,
+          opponentFlags: opponentFlags,
+        );
         return;
       }
 
@@ -52,7 +65,6 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
           );
           final seed = d['seed'] as int;
           _bloc = GameBloc(_config)..add(InitializeGame(seed: seed));
-          // Capturamos el primer estado Playing
           _bloc.stream.firstWhere((s) => s is Playing).then((s) {
             final p = s as Playing;
             _prevCells = List<Cell>.from(p.cells);
@@ -71,30 +83,33 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
               );
               updated[cell.index] = cell;
             }
-            _bloc.add(SetPlayingState(
-              Playing(
-                configuration: currentState.gameConfiguration,
-                cells: updated,
-                flagsRemaining: data['flagsRemaining'] as int,
-                elapsedSeconds: data['elapsedSeconds'] as int,
-                currentPlayerId: data['currentPlayerId'] as String,
+            _bloc.add(
+              SetPlayingState(
+                Playing(
+                  configuration: currentState.gameConfiguration,
+                  cells: updated,
+                  flagsRemaining: data['flagsRemaining'] as int,
+                  elapsedSeconds: data['elapsedSeconds'] as int,
+                  currentPlayerId: data['currentPlayerId'] as String,
+                ),
               ),
-            ));
+            );
           }
           break;
 
         case NetEventType.revealTile:
-          _bloc.add(TapCell(
-            evt.data['index'] as int,
-            evt.data['playerId'] as String,
-          ));
+          _bloc.add(
+            TapCell(evt.data['index'] as int, evt.data['playerId'] as String),
+          );
           break;
 
         case NetEventType.flagTile:
-          _bloc.add(ToggleFlag(
-            index: evt.data['index'] as int,
-            playerId: evt.data['playerId'] as String,
-          ));
+          _bloc.add(
+            ToggleFlag(
+              index: evt.data['index'] as int,
+              playerId: evt.data['playerId'] as String,
+            ),
+          );
           break;
 
         default:
@@ -118,19 +133,44 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
       value: _bloc,
       child: BlocListener<GameBloc, GameState>(
         listener: (context, state) {
-          // 3) Si el cliente termina localmente, avisamos al host
-          if ((state is GameOver || state is Victory) && _lastEndEvent == null) {
-            final clientWon = state is Victory;
-            _lastEndEvent = NetEvent(
-              type: NetEventType.endGame,
-              data: {'winnerId': clientWon ? 'client' : 'host'},
+          // Partida terminada (derrota o resultado por bandera)
+          if (state is GameOver || state is GameResult) {
+            final isVictory =
+                state is GameResult && state.winnerId == _myPlayerId;
+
+            // Enviar endGame solo una vez, incluyendo estadísticas
+            if (_lastEndEvent == null) {
+              final cellsMap = _bloc.cellsRevealedMap;
+              final flagsMap = _bloc.correctFlagsMap;
+              final data = {
+                'winnerId':
+                    isVictory
+                        ? _myPlayerId
+                        : (_myPlayerId == 'client' ? 'host' : 'client'),
+                'cellsRevealed': cellsMap,
+                'correctFlags': flagsMap,
+              };
+              _lastEndEvent = NetEvent(type: NetEventType.endGame, data: data);
+              widget.clientManager.send(_lastEndEvent!.toJson());
+            }
+
+            // Mostrar estadísticas
+            final cellsRevealed = _bloc.cellsRevealedMap[_myPlayerId]!;
+            final opponentRevealed = _bloc.cellsRevealedMap['host']!;
+            final correctFlags = _bloc.correctFlagsMap[_myPlayerId]!;
+            final opponentFlags = _bloc.correctFlagsMap['host']!;
+
+            _showStatsDialog(
+              won: isVictory,
+              cellsRevealed: cellsRevealed,
+              opponentRevealed: opponentRevealed,
+              correctFlags: correctFlags,
+              opponentFlags: opponentFlags,
             );
-            widget.clientManager.send(_lastEndEvent!.toJson());
-            _showEndDialog(clientWon);
             return;
           }
 
-          // 4) Difusión de diffs tras jugada propia
+          // En juego: diffs tras jugada propia
           if (state is Playing) {
             if (_prevCells.isEmpty) {
               _prevCells = List.from(state.cells);
@@ -174,31 +214,51 @@ class _ClientGameScreenState extends State<ClientGameScreen> {
     );
   }
 
-  void _showEndDialog(bool won) {
+  void _showStatsDialog({
+    required bool won,
+    required int cellsRevealed,
+    required int opponentRevealed,
+    required int correctFlags,
+    required int opponentFlags,
+  }) {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.black87,
-        title: Text(
-          won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
-          style: const TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => HomeScreen()),
-              );
-            },
-            child: const Text(
-              'Volver a jugar',
-              style: TextStyle(color: Colors.greenAccent),
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: Colors.black87,
+            title: Text(
+              won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
+              style: const TextStyle(color: Colors.white),
             ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Celdas reveladas:'),
+                Text('  Tú: $cellsRevealed'),
+                Text('  Rival: $opponentRevealed'),
+                const SizedBox(height: 8),
+                Text('Banderas correctas:'),
+                Text('  Tú: $correctFlags'),
+                Text('  Rival: $opponentFlags'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => HomeScreen()),
+                  );
+                },
+                child: const Text(
+                  'Volver a jugar',
+                  style: TextStyle(color: Colors.greenAccent),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 }

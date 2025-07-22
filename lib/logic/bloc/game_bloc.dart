@@ -275,4 +275,8 @@ class GameBloc extends Bloc<GameEvent, GameState> {
       }
     }
   }
+
+  /// Exponer estadísticas de forma segura
+  Map<String, int> get cellsRevealedMap => Map.unmodifiable(_cellsRevealed);
+  Map<String, int> get correctFlagsMap => Map.unmodifiable(_correctFlags);
 }

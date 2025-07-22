@@ -34,11 +34,9 @@ class _HostGameScreenState extends State<HostGameScreen> {
     if (current is Playing) {
       _prevCells = List<Cell>.from(current.cells);
     } else {
-      widget.bloc.stream
-        .firstWhere((s) => s is Playing)
-        .then((s) {
-          _prevCells = List<Cell>.from((s as Playing).cells);
-        });
+      widget.bloc.stream.firstWhere((s) => s is Playing).then((s) {
+        _prevCells = List<Cell>.from((s as Playing).cells);
+      });
     }
 
     // Escucha eventos de red
@@ -55,16 +53,17 @@ class _HostGameScreenState extends State<HostGameScreen> {
       // 2) Jugadas normales
       switch (evt.type) {
         case NetEventType.revealTile:
-          widget.bloc.add(TapCell(
-            evt.data['index'] as int,
-            evt.data['playerId'] as String,
-          ));
+          widget.bloc.add(
+            TapCell(evt.data['index'] as int, evt.data['playerId'] as String),
+          );
           break;
         case NetEventType.flagTile:
-          widget.bloc.add(ToggleFlag(
-            index: evt.data['index'] as int,
-            playerId: evt.data['playerId'] as String,
-          ));
+          widget.bloc.add(
+            ToggleFlag(
+              index: evt.data['index'] as int,
+              playerId: evt.data['playerId'] as String,
+            ),
+          );
           break;
         case NetEventType.stateUpdate:
           final data = evt.data;
@@ -77,15 +76,17 @@ class _HostGameScreenState extends State<HostGameScreen> {
               );
               updated[cell.index] = cell;
             }
-            widget.bloc.add(SetPlayingState(
-              Playing(
-                configuration: state.gameConfiguration,
-                cells: updated,
-                flagsRemaining: data['flagsRemaining'] as int,
-                elapsedSeconds: data['elapsedSeconds'] as int,
-                currentPlayerId: data['currentPlayerId'] as String,
+            widget.bloc.add(
+              SetPlayingState(
+                Playing(
+                  configuration: state.gameConfiguration,
+                  cells: updated,
+                  flagsRemaining: data['flagsRemaining'] as int,
+                  elapsedSeconds: data['elapsedSeconds'] as int,
+                  currentPlayerId: data['currentPlayerId'] as String,
+                ),
               ),
-            ));
+            );
           }
           break;
         default:
@@ -100,19 +101,42 @@ class _HostGameScreenState extends State<HostGameScreen> {
       value: widget.bloc,
       child: BlocListener<GameBloc, GameState>(
         listener: (context, state) {
-          // Si GameOver local o Victory local, enviamos endGame y mostramos modal
-          if ((state is GameOver || state is Victory) && _lastEndEvent == null) {
-            final hostWon = state is Victory;
-            _lastEndEvent = NetEvent(
-              type: NetEventType.endGame,
-              data: {'winnerId': hostWon ? 'host' : 'client'},
+          // Partida terminada (derrota o resultado por bandera)
+          if (state is GameOver || state is GameResult) {
+            final isVictory = state is GameResult && state.winnerId == 'host';
+
+            // Enviar endGame solo una vez, con estadísticas
+            if (_lastEndEvent == null) {
+              // Recogemos estadísticas del BLoC
+              final cellsRevealedMap = widget.bloc.cellsRevealedMap;
+              final correctFlagsMap = widget.bloc.correctFlagsMap;
+
+              final data = {
+                'winnerId': isVictory ? 'host' : 'client',
+                'cellsRevealed': cellsRevealedMap,
+                'correctFlags': correctFlagsMap,
+              };
+              _lastEndEvent = NetEvent(type: NetEventType.endGame, data: data);
+              widget.hostManager.send(_lastEndEvent!.toJson());
+            }
+
+            // Mostrar diálogo con estadísticas
+            final cellsRevealed = widget.bloc.cellsRevealedMap['host']!;
+            final opponentRevealed = widget.bloc.cellsRevealedMap['client']!;
+            final correctFlags = widget.bloc.correctFlagsMap['host']!;
+            final opponentFlags = widget.bloc.correctFlagsMap['client']!;
+
+            _showStatsDialog(
+              won: isVictory,
+              cellsRevealed: cellsRevealed,
+              opponentRevealed: opponentRevealed,
+              correctFlags: correctFlags,
+              opponentFlags: opponentFlags,
             );
-            widget.hostManager.send(_lastEndEvent!.toJson());
-            _showEndDialog(hostWon);
             return;
           }
 
-          // Enviar diffs periódicos de estado Playing
+          // Estado en juego: enviar diffs
           if (state is Playing) {
             final newCells = state.cells;
             final diffs = <Map<String, dynamic>>[];
@@ -143,10 +167,7 @@ class _HostGameScreenState extends State<HostGameScreen> {
             backgroundColor: Colors.black54,
             title: const Center(child: Text('Host: Minesweeper')),
           ),
-          body: GameBoard(
-            isHost: true,
-            myPlayerId: 'host',
-          ),
+          body: GameBoard(isHost: true, myPlayerId: 'host'),
         ),
       ),
     );
@@ -156,27 +177,76 @@ class _HostGameScreenState extends State<HostGameScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        backgroundColor: Colors.black87,
-        title: Text(
-          won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
-          style: const TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (_) => HomeScreen()),
-              );
-            },
-            child: const Text(
-              'Volver a jugar',
-              style: TextStyle(color: Colors.greenAccent),
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: Colors.black87,
+            title: Text(
+              won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
+              style: const TextStyle(color: Colors.white),
             ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => HomeScreen()),
+                  );
+                },
+                child: const Text(
+                  'Volver a jugar',
+                  style: TextStyle(color: Colors.greenAccent),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+    );
+  }
+
+  void _showStatsDialog({
+    required bool won,
+    required int cellsRevealed,
+    required int opponentRevealed,
+    required int correctFlags,
+    required int opponentFlags,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: Colors.black87,
+            title: Text(
+              won ? '🎉 ¡Ganaste!' : '💥 Has perdido',
+              style: const TextStyle(color: Colors.white),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Celdas reveladas:'),
+                Text('  Tú: $cellsRevealed'),
+                Text('  Rival: $opponentRevealed'),
+                const SizedBox(height: 8),
+                Text('Banderas correctas:'),
+                Text('  Tú: $correctFlags'),
+                Text('  Rival: $opponentFlags'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (_) => HomeScreen()),
+                  );
+                },
+                child: const Text(
+                  'Volver a jugar',
+                  style: TextStyle(color: Colors.greenAccent),
+                ),
+              ),
+            ],
+          ),
     );
   }
 }
