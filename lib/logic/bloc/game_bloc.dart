@@ -204,6 +204,21 @@ class GameBloc extends Bloc<GameEvent, GameState> {
     final updatedCells = List<Cell>.from(currentState.cells);
     updatedCells[index] = (cell).copyWith(flagged: newFlagged);
 
+    // 5.5) Comprobar victoria si acabamos de colocar la última bandera
+    if (flagsPlaced == configuration.numberOfBombs){
+      final bombIndexes = updatedCells
+        .whereType<CellClosed>()
+        .where((c) => c.content == CellContent.bomb)
+        .map((c) => c.index)
+        .toSet();
+      final flaggedIndexes = _flagOwners.keys.toSet();
+      if (flaggedIndexes.length == bombIndexes.length && flaggedIndexes.difference(bombIndexes).isEmpty) {
+        _timer?.cancel();
+        emit(Victory(configuration: configuration, cells: updatedCells));
+        return;
+      }
+    }
+
     // 6) Emitir sin cambiar turno
     emit(
       Playing(
